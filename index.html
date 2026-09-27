@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CNS-FIM Dashboard</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500&family=Noto+Serif+Thai:wght@500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@3.27.0/lib/msal-browser.min.js"></script>
+<style>
+  :root {
+    --bg: #FAF7F2; --surface: #FFFFFF; --surface-2: #F3EEE6; --line: #E6DED2;
+    --ink: #1F2A36; --text: #2E2A26; --muted: #6F665D; --accent: #9A7B4F;
+    --ok: #3F7D5A; --bad: #A63A3A;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    padding: 24px 16px; background: var(--bg); color: var(--text);
+    font-family: "IBM Plex Sans Thai", system-ui, sans-serif;
+  }
+  main {
+    width: 100%; max-width: 560px; background: var(--surface); border: 1px solid var(--line);
+    border-radius: 6px; padding: 40px 32px; text-align: center;
+  }
+  .rule { width: 48px; height: 2px; background: var(--accent); margin: 0 auto 24px; }
+  .code { font-size: 13px; letter-spacing: 0.18em; color: var(--accent); margin: 0 0 8px; }
+  h1 { font-family: "Noto Serif Thai", serif; font-weight: 600; font-size: 26px; color: var(--ink); margin: 0 0 8px; }
+  .sub { color: var(--muted); margin: 0 0 28px; }
+  .status { display: inline-block; font-size: 14px; padding: 6px 14px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); }
+  button {
+    font: inherit; font-weight: 500; cursor: pointer; margin-top: 28px;
+    background: var(--ink); color: #fff; border: 0; border-radius: 6px; padding: 10px 20px;
+  }
+  button.secondary { background: transparent; color: var(--ink); border: 1px solid var(--line); margin-left: 8px; }
+  #result { text-align: left; margin-top: 24px; font-size: 14px; }
+  .check { display: flex; gap: 10px; padding: 10px 0; border-top: 1px solid var(--line); }
+  .check b { min-width: 20px; }
+  .ok b { color: var(--ok); } .bad b { color: var(--bad); }
+  .detail { color: var(--muted); font-size: 13px; word-break: break-word; }
+  table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 13px; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+  th { background: var(--surface-2); font-weight: 500; }
+  footer { margin-top: 28px; font-size: 12px; color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <div class="rule"></div>
+  <p class="code">CNS-FIM</p>
+  <h1>Flight Inspection Management</h1>
+  <p class="sub">ระบบติดตามผลการบินทดสอบเครื่องช่วยการเดินอากาศ</p>
+  <span class="status">อยู่ระหว่างพัฒนา · เปิดใช้งาน พฤศจิกายน 2569</span>
+  <div id="actions"></div>
+  <div id="result"></div>
+  <footer>กอง NA · สำนักงานการบินพลเรือนแห่งประเทศไทย</footer>
+</main>
+
+<script>
+// ---- Configuration (not secret) ----
+const CONFIG = {
+  clientId: "4de6e336-d685-4b65-9f17-ee59fd81beb2",
+  tenantId: "af3a83b6-13aa-4300-a5ae-b19c8c423a5a",
+  redirectUri: "https://cnsstandardsdivision.github.io/fim/",
+  siteUrl: "https://caathai.sharepoint.com/sites/ANSNASharePoint",
+  spScope: "https://caathai.sharepoint.com/AllSites.Read"
+};
+
+// License numbers expected from CL-1 import file (99)
+const EXPECTED = ["54/2557", "57/2557", "79/2557", "19/2557", "03/2557", "21/2557", "20/2557", "17/2558", "N003/2562", "001/2560", "3/2558", "7/2558", "5/2558", "4/2558", "6/2558", "10/2558", "N004/2562", "N002/2563", "N005/2562", "34/2557", "2/2558", "S003/2561", "25/2557", "24/2557", "33/2557", "14/2557", "32/2557", "35/2557", "N003/2561", "23/2557", "22/2557", "27/2557", "28/2557", "26/2557", "12/2558", "46/2557", "08/2557", "1/2558", "81/2557", "80/2557", "N002/2562", "30/2557", "N004/2561", "N002/2561", "37/2557", "N005/2561", "16/2558", "29/2557", "84/2557", "N006/2561", "18/2558", "63/2557", "64/2557", "01/2557", "60/2557", "07/2557", "02/2557", "14/2558", "75/2557", "15/2557", "62/2557", "04/2557", "N006/2562", "69/2557", "70/2557", "19/2558", "67/2557", "68/2557", "66/2557", "72/2557", "73/2557", "S002/2561", "77/2557", "10/2557", "N001/2563", "39/2557", "N001/2562", "13/2558", "51/2557", "05/2557", "50/2557", "45/2557", "44/2557", "43/2557", "42/2557", "41/2557", "59/2557", "06/2557", "58/2557", "48/2557", "49/2557", "21/2558", "53/2557", "09/2557", "52/2557", "15/2558", "56/2557", "12/2557", "55/2557"];
+
+const pca = new msal.PublicClientApplication({
+  auth: {
+    clientId: CONFIG.clientId,
+    authority: "https://login.microsoftonline.com/" + CONFIG.tenantId,
+    redirectUri: CONFIG.redirectUri
+  },
+  cache: { cacheLocation: "sessionStorage" }
+});
+
+const $actions = document.getElementById("actions");
+const $result = document.getElementById("result");
+
+function esc(s) {
+  return String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+function row(ok, title, detail) {
+  return `<div class="check ${ok ? "ok" : "bad"}"><b>${ok ? "✓" : "✕"}</b><div>${esc(title)}${detail ? `<div class="detail">${detail}</div>` : ""}</div></div>`;
+}
+
+async function getToken(account) {
+  try {
+    const r = await pca.acquireTokenSilent({ scopes: [CONFIG.spScope], account });
+    return r.accessToken;
+  } catch (e) {
+    if (e instanceof msal.InteractionRequiredAuthError) {
+      await pca.acquireTokenRedirect({ scopes: [CONFIG.spScope], account });
+      return null;
+    }
+    throw e;
+  }
+}
+
+async function sp(token, path) {
+  const res = await fetch(CONFIG.siteUrl + path, {
+    headers: { Authorization: "Bearer " + token, Accept: "application/json;odata=nometadata" }
+  });
+  if (!res.ok) throw new Error("HTTP " + res.status + " " + (await res.text()).slice(0, 200));
+  return res.json();
+}
+
+async function runTest(account) {
+  let html = row(true, "Login สำเร็จ", esc(account.username));
+  $result.innerHTML = html + `<div class="detail" style="padding-top:10px">กำลังทดสอบ…</div>`;
+
+  let token;
+  try {
+    token = await getToken(account);
+    if (!token) return;
+    html += row(true, "ได้รับสิทธิ์อ่าน SharePoint (AllSites.Read)");
+  } catch (e) {
+    $result.innerHTML = html + row(false, "ขอสิทธิ์อ่าน SharePoint ไม่สำเร็จ", esc(e.message));
+    return;
+  }
+
+  try {
+    const d = await sp(token, "/_api/web/lists/getbytitle('FIM_Facilities')/items?$select=Title,SiteCode,FacilityType,DueStatus&$top=500");
+    const items = d.value || [];
+    const sample = items.slice(0, 5).map(i =>
+      `<tr><td>${esc(i.SiteCode)}</td><td>${esc(i.FacilityType)}</td><td>${esc(i.Title)}</td><td>${esc(i.DueStatus)}</td></tr>`).join("");
+    html += row(items.length > 0, `อ่าน FIM_Facilities ได้ ${items.length} แถว`,
+      `<table><tr><th>Site</th><th>Facility</th><th>License</th><th>DueStatus</th></tr>${sample}</table>`);
+    const have = new Set(items.map(i => String(i.Title).trim()));
+    const missing = EXPECTED.filter(x => !have.has(x));
+    const extra = items.map(i => String(i.Title).trim()).filter(x => !EXPECTED.includes(x));
+    const counts = {}; items.forEach(i => { const k = String(i.Title).trim(); counts[k] = (counts[k] || 0) + 1; });
+    const dup = Object.keys(counts).filter(k => counts[k] > 1);
+    const blankStatus = items.filter(i => !i.DueStatus).length;
+    html += row(missing.length === 0, `ตรวจกับไฟล์ CL-1: ขาด ${missing.length} รายการ`, esc(missing.join(", ")));
+    if (extra.length) html += row(false, `มี License ที่ไม่อยู่ในไฟล์ CL-1 ${extra.length} รายการ (อาจเสียเลข 0 นำหน้า)`, esc(extra.join(", ")));
+    if (dup.length) html += row(false, `License ซ้ำ ${dup.length} รายการ`, esc(dup.join(", ")));
+    html += row(blankStatus === 0, `DueStatus ว่าง ${blankStatus} แถว`, blankStatus ? "ควรเป็น No Record ทุกแถว" : "");
+  } catch (e) {
+    html += row(false, "อ่าน FIM_Facilities ไม่ได้", esc(e.message));
+  }
+
+  try {
+    const g = await sp(token, "/_api/web/currentuser/groups?$select=Title");
+    const names = (g.value || []).map(x => x.Title);
+    const fim = names.filter(n => /^FIM-/.test(n));
+    html += row(true, "อ่านกลุ่มของผู้ใช้ได้", esc(fim.length ? fim.join(", ") : "ไม่อยู่ในกลุ่ม FIM-AF / FIM-Admin"));
+  } catch (e) {
+    html += row(false, "อ่านกลุ่มของผู้ใช้ไม่ได้", esc(e.message));
+  }
+
+  $result.innerHTML = html;
+}
+
+(async () => {
+  try {
+    await pca.initialize();
+    const resp = await pca.handleRedirectPromise();
+    const account = resp?.account || pca.getAllAccounts()[0];
+    if (account) {
+      pca.setActiveAccount(account);
+      $actions.innerHTML = `<button id="again">ทดสอบอีกครั้ง</button><button class="secondary" id="out">ออกจากระบบ</button>`;
+      document.getElementById("again").onclick = () => runTest(account);
+      document.getElementById("out").onclick = () => pca.logoutRedirect({ account, postLogoutRedirectUri: CONFIG.redirectUri });
+      runTest(account);
+    } else {
+      $actions.innerHTML = `<button id="in">ทดสอบการเชื่อมต่อ (Login ด้วยบัญชี CAAT)</button>`;
+      document.getElementById("in").onclick = () => pca.loginRedirect({ scopes: [CONFIG.spScope] });
+    }
+  } catch (e) {
+    $result.innerHTML = row(false, "เกิดข้อผิดพลาดในการ Login", esc(e.errorCode ? e.errorCode + ": " + e.errorMessage : e.message));
+  }
+})();
+</script>
+</body>
+</html>
