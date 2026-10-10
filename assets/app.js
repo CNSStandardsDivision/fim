@@ -82,41 +82,80 @@
   }
   const list = n => `/_api/web/lists/getbytitle('${n}')`;
 
+  // Columns the dashboard reads. Each entry: wanted name -> candidates (internal name or display name).
+  // Real internal names can differ from the build guide (T11), so every list is read with $select=*
+  // and each column is resolved through the list's field metadata instead of a fixed $select.
+  const WANT = {
+    facilities: { Title: ["Title"], SiteCode: ["SiteCode"], SiteName: ["SiteName"], FacilityType: ["FacilityType"], BaseType: ["BaseType"],
+      LicenseHolder: ["LicenseHolder", "LicenceHolder"], LicenseStatus: ["LicenseStatus"], OperationalStatus: ["OperationalStatus"],
+      DueStatus: ["DueStatus"], LastInspection: ["LastInspection"], LastRecord: ["LastRecord"], NextDueDate: ["NextDueDate"], ExtendableDueDate: ["ExtendableDueDate"] },
+    records: { Title: ["Title"], Facility: ["Facility"], FlightDateStart: ["FlightDateStart"], FlightDate: ["FlightDate"], InspectionType: ["InspectionType"],
+      Result: ["Result"], Measure: ["Measure"], MeasureCompleted: ["MeasureCompleted"], NextDueDate: ["NextDueDate"], ExtendableDueDate: ["ExtendableDueDate"],
+      CertifiedDate: ["CertifiedDate"], LetterNo: ["LetterNo"], LetterDate: ["LetterDate"], FileLink: ["FileLink"], LetterLink: ["LetterLink"],
+      Note: ["Note"], IsBaseline: ["IsBaseline"] },
+    types: { Title: ["Title"], IntervalValue: ["IntervalValue"], IntervalUnit: ["IntervalUnit"], Branch: ["Branch"] }
+  };
+  S.missing = [];
+
+  // fields: [{InternalName, Title, TypeAsString}] -> getter(item, wantedName)
+  function resolver(listKey, fields) {
+    const map = {};
+    for (const [want, cands] of Object.entries(WANT[listKey])) {
+      if (!fields) { map[want] = { key: want }; continue; }
+      let f = null;
+      for (const c of cands) {
+        f = fields.find(x => x.InternalName === c) || fields.find(x => String(x.Title).toLowerCase() === c.toLowerCase());
+        if (f) break;
+      }
+      if (!f) { S.missing.push(C.lists[listKey] + "." + want); map[want] = { key: want }; continue; }
+      const lookup = /^Lookup/.test(f.TypeAsString || "");
+      map[want] = { key: lookup ? f.InternalName + "Id" : f.InternalName };
+    }
+    return (item, want) => item[map[want].key];
+  }
+
   async function fetchAll() {
     if (DEMO) return window.FIRMS_DEMO();
     const tk = await token(); if (!tk) return null;
-    const [f, r, t, p] = await Promise.all([
-      sp(tk, list(C.lists.facilities) + "/items?$top=5000&$select=ID,Title,SiteCode,SiteName,FacilityType,BaseType,LicenseHolder,LicenseStatus,OperationalStatus,DueStatus,LastInspection,LastRecord,NextDueDate,ExtendableDueDate"),
-      sp(tk, list(C.lists.records) + "/items?$top=5000&$orderby=ID desc&$select=ID,Title,FacilityId,FlightDateStart,FlightDate,InspectionType,Result,Measure,MeasureCompleted,NextDueDate,ExtendableDueDate,CertifiedDate,LetterNo,LetterDate,FileLink,LetterLink,Note,IsBaseline,Created,Author/Title&$expand=Author"),
-      sp(tk, list(C.lists.types) + "/items?$top=100&$select=Title,IntervalValue,IntervalUnit,Branch"),
+    const fields = n => sp(tk, list(n) + "/fields?$select=InternalName,Title,TypeAsString&$filter=Hidden eq false").then(d => d.value);
+    const [f, r, t, ff, fr, ft, p] = await Promise.all([
+      sp(tk, list(C.lists.facilities) + "/items?$top=5000&$select=*"),
+      sp(tk, list(C.lists.records) + "/items?$top=5000&$orderby=ID desc&$select=*,Author/Title&$expand=Author"),
+      sp(tk, list(C.lists.types) + "/items?$top=100&$select=*"),
+      fields(C.lists.facilities), fields(C.lists.records), fields(C.lists.types),
       sp(tk, list(C.lists.records) + "/EffectiveBasePermissions").catch(() => null)
     ]);
-    return { facilities: f.value, records: r.value, types: t.value, perm: p };
+    return { facilities: f.value, records: r.value, types: t.value, fields: { facilities: ff, records: fr, types: ft }, perm: p };
   }
 
   function normalize(raw) {
-    S.types = Object.fromEntries((raw.types || []).map(t => [t.Title, t]));
+    S.missing = [];
+    const fld = raw.fields || {};
+    const gf = resolver("facilities", fld.facilities), gr = resolver("records", fld.records), gt = resolver("types", fld.types);
+    S.types = Object.fromEntries((raw.types || []).map(t => [gt(t, "Title"), { Branch: gt(t, "Branch"), IntervalValue: gt(t, "IntervalValue"), IntervalUnit: gt(t, "IntervalUnit") }]));
     S.fac = (raw.facilities || [])
-      .filter(x => x.LicenseStatus === "ปกติ")
+      .filter(x => gf(x, "LicenseStatus") === "ปกติ")
       .map(x => {
-        const op = x.OperationalStatus || "Service Ready";
-        const key = op === "Service Ready" ? (x.DueStatus || "No Record") : op;
-        const t = S.types[x.BaseType] || {};
+        const op = gf(x, "OperationalStatus") || "Service Ready";
+        const key = op === "Service Ready" ? (gf(x, "DueStatus") || "No Record") : op;
+        const base = gf(x, "BaseType") || "";
+        const t = S.types[base] || {};
         return {
-          id: x.ID, lic: String(x.Title || "").trim(), site: x.SiteCode || "", name: x.SiteName || "", type: x.FacilityType || "",
-          base: x.BaseType || "", holder: x.LicenseHolder || "", key, branch: t.Branch || "",
+          id: x.ID, lic: String(gf(x, "Title") || "").trim(), site: gf(x, "SiteCode") || "", name: gf(x, "SiteName") || "", type: gf(x, "FacilityType") || "",
+          base, holder: gf(x, "LicenseHolder") || "", key, branch: t.Branch || "",
           interval: t.IntervalValue ? `ทุก ${t.IntervalValue} ${t.IntervalUnit === "Day" ? "วัน" : t.IntervalUnit === "Month" ? "เดือน" : "ปี"}` : "–",
-          last: day(x.LastInspection), lastRec: x.LastRecord || "", next: day(x.NextDueDate), ext: day(x.ExtendableDueDate)
+          last: day(gf(x, "LastInspection")), lastRec: gf(x, "LastRecord") || "", next: day(gf(x, "NextDueDate")), ext: day(gf(x, "ExtendableDueDate"))
         };
       });
     S.recs = (raw.records || []).map(x => ({
-      id: x.ID, fir: x.Title || "FIR-" + String(x.ID).padStart(4, "0"), facId: x.FacilityId,
-      start: day(x.FlightDateStart), end: day(x.FlightDate), itype: x.InspectionType || "", result: x.Result || "",
-      measure: x.Measure || "", done: !!x.MeasureCompleted, next: day(x.NextDueDate), ext: day(x.ExtendableDueDate),
-      cert: day(x.CertifiedDate), letterNo: x.LetterNo || "", letterDate: day(x.LetterDate),
-      file: url(x.FileLink), letter: url(x.LetterLink), note: x.Note || "", baseline: !!x.IsBaseline,
+      id: x.ID, fir: gr(x, "Title") || "FIR-" + String(x.ID).padStart(4, "0"), facId: raw.fields ? gr(x, "Facility") : x.FacilityId,
+      start: day(gr(x, "FlightDateStart")), end: day(gr(x, "FlightDate")), itype: gr(x, "InspectionType") || "", result: gr(x, "Result") || "",
+      measure: gr(x, "Measure") || "", done: !!gr(x, "MeasureCompleted"), next: day(gr(x, "NextDueDate")), ext: day(gr(x, "ExtendableDueDate")),
+      cert: day(gr(x, "CertifiedDate")), letterNo: gr(x, "LetterNo") || "", letterDate: day(gr(x, "LetterDate")),
+      file: url(gr(x, "FileLink")), letter: url(gr(x, "LetterLink")), note: gr(x, "Note") || "", baseline: !!gr(x, "IsBaseline"),
       by: x.Author?.Title || "", created: x.Created || ""
     }));
+    if (S.missing.length) console.warn("FIRMS: columns not found", S.missing);
     const low = raw.perm ? Number(raw.perm.Low ?? raw.perm.EffectiveBasePermissions?.Low ?? 0) : 0;
     S.canAdd = DEMO ? true : (low & 0x2) === 0x2; // AddListItems
     S.loadedAt = new Date();
@@ -202,6 +241,7 @@
         ${S.canAdd ? `<a class="btn act" href="${esc(recorderLink())}" target="_blank" rel="noopener">${ICON.plus} บันทึกผลการบินทดสอบ</a>` : ""}
       </div>
 
+      ${S.missing.length ? `<div class="notice">ไม่พบคอลัมน์ใน SharePoint: ${esc(S.missing.join(", "))} · ข้อมูลส่วนนี้จะว่าง แจ้ง Admin</div>` : ""}
       <section class="kpis" aria-label="สรุปสถานะ">
         <button class="kpi" data-status="" aria-pressed="${!f.status}"><div class="n num">${base.length}</div><div class="l">ทั้งหมด</div></button>
         ${STATUS.map(s => `<button class="kpi${counts[s.key] ? "" : " zero"}" data-status="${esc(s.key)}" aria-pressed="${f.status === s.key}">
