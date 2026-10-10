@@ -93,7 +93,7 @@
       Result: ["Result"], Measure: ["Measure"], MeasureCompleted: ["MeasureCompleted"], NextDueDate: ["NextDueDate"], ExtendableDueDate: ["ExtendableDueDate"],
       CertifiedDate: ["CertifiedDate"], LetterNo: ["LetterNo"], LetterDate: ["LetterDate"], FileLink: ["FileLink"], LetterLink: ["LetterLink"],
       Note: ["Note"], IsBaseline: ["IsBaseline"] },
-    types: { Title: ["Title"], IntervalValue: ["IntervalValue"], IntervalUnit: ["IntervalUnit"], Branch: ["Branch"] }
+    types: { Title: ["Title"], IntervalValue: ["IntervalValue"], IntervalUnit: ["IntervalUnit"] }
   };
   S.missing = [];
 
@@ -123,16 +123,16 @@
       sp(tk, list(C.lists.records) + "/items?$top=5000&$orderby=ID desc&$select=*,Author/Title&$expand=Author"),
       sp(tk, list(C.lists.types) + "/items?$top=100&$select=*"),
       fields(C.lists.facilities), fields(C.lists.records), fields(C.lists.types),
-      sp(tk, list(C.lists.records) + "/EffectiveBasePermissions").catch(() => null)
+      sp(tk, "/_api/web/currentuser/groups?$select=Title").then(d => d.value.map(g => g.Title)).catch(() => [])
     ]);
-    return { facilities: f.value, records: r.value, types: t.value, fields: { facilities: ff, records: fr, types: ft }, perm: p };
+    return { facilities: f.value, records: r.value, types: t.value, fields: { facilities: ff, records: fr, types: ft }, groups: p };
   }
 
   function normalize(raw) {
     S.missing = [];
     const fld = raw.fields || {};
     const gf = resolver("facilities", fld.facilities), gr = resolver("records", fld.records), gt = resolver("types", fld.types);
-    S.types = Object.fromEntries((raw.types || []).map(t => [gt(t, "Title"), { Branch: gt(t, "Branch"), IntervalValue: gt(t, "IntervalValue"), IntervalUnit: gt(t, "IntervalUnit") }]));
+    S.types = Object.fromEntries((raw.types || []).map(t => [gt(t, "Title"), { IntervalValue: gt(t, "IntervalValue"), IntervalUnit: gt(t, "IntervalUnit") }]));
     S.fac = (raw.facilities || [])
       .filter(x => gf(x, "LicenseStatus") === "ปกติ")
       .map(x => {
@@ -142,7 +142,7 @@
         const t = S.types[base] || {};
         return {
           id: x.ID, lic: String(gf(x, "Title") || "").trim(), site: gf(x, "SiteCode") || "", name: gf(x, "SiteName") || "", type: gf(x, "FacilityType") || "",
-          base, holder: gf(x, "LicenseHolder") || "", key, branch: t.Branch || "",
+          base, holder: gf(x, "LicenseHolder") || "", key, branch: base ? (base === "SSR" ? "S" : "N") : "", // same rule as F4
           interval: t.IntervalValue ? `ทุก ${t.IntervalValue} ${t.IntervalUnit === "Day" ? "วัน" : t.IntervalUnit === "Month" ? "เดือน" : "ปี"}` : "–",
           last: day(gf(x, "LastInspection")), lastRec: gf(x, "LastRecord") || "", next: day(gf(x, "NextDueDate")), ext: day(gf(x, "ExtendableDueDate"))
         };
@@ -156,8 +156,7 @@
       by: x.Author?.Title || "", created: x.Created || ""
     }));
     if (S.missing.length) console.warn("FIRMS: columns not found", S.missing);
-    const low = raw.perm ? Number(raw.perm.Low ?? raw.perm.EffectiveBasePermissions?.Low ?? 0) : 0;
-    S.canAdd = DEMO ? true : (low & 0x2) === 0x2; // AddListItems
+    S.canAdd = DEMO ? true : (raw.groups || []).some(g => C.recorderGroups.includes(g));
     S.loadedAt = new Date();
   }
 

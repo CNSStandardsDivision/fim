@@ -9,6 +9,9 @@ window.FIRMS_CONFIG = {
   // FIRMS Recorder (Power Apps) — ปุ่มบันทึกผลต่อท้าย &facility=<เลขใบอนุญาต>
   recorderUrl: "https://apps.powerapps.com/play/e/default-af3a83b6-13aa-4300-a5ae-b19c8c423a5a/a/4d4e4b4f-f5aa-4dfb-b08f-b5081a250e4f?tenantId=af3a83b6-13aa-4300-a5ae-b19c8c423a5a",
 
+  // กลุ่ม SharePoint ที่เห็นปุ่มบันทึกผล
+  recorderGroups: ["FIM-AF", "FIM-Admin"],
+
   lists: {
     facilities: "FIM_Facilities",
     records: "FIM_Records",
