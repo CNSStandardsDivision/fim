@@ -9,8 +9,12 @@ window.FIRMS_CONFIG = {
   // FIRMS Recorder (Power Apps) — ปุ่มบันทึกผลต่อท้าย &facility=<เลขใบอนุญาต>
   recorderUrl: "https://apps.powerapps.com/play/e/default-af3a83b6-13aa-4300-a5ae-b19c8c423a5a/a/4d4e4b4f-f5aa-4dfb-b08f-b5081a250e4f?tenantId=af3a83b6-13aa-4300-a5ae-b19c8c423a5a",
 
-  // กลุ่ม SharePoint ที่เห็นปุ่มบันทึกผล
+  // กลุ่ม SharePoint ที่เห็นปุ่มบันทึกผลในตาราง Dashboard (บันทึกได้จริง)
   recorderGroups: ["FIM-AF", "FIM-Admin"],
+
+  // กลุ่ม SharePoint ของเจ้าหน้าที่กอง AF / NA: หน้าแรกเปิดการ์ด FIRMS Recorder และโฟลเดอร์รายงานให้
+  // (NA เข้า FIRMS Recorder ได้แบบดูอย่างเดียว) · ชื่อกลุ่มต้องตรงกับใน SharePoint ทุกตัวอักษร
+  staffGroups: ["FIM-AF", "FIM-Admin", "ANSNA SharePoint Members"],
 
   // URL ของ Document Library (ชื่อที่แสดง: CNS-FIM Documents)
   libraryUrl: "FIMDocuments",

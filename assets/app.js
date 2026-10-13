@@ -3,10 +3,17 @@
   "use strict";
   const C = window.FIRMS_CONFIG;
   const DEMO = new URLSearchParams(location.search).has("demo");
+  // demo previews: ?demo = AF / Admin · ?demo&na = NA (view-only Recorder) · ?demo&viewer = outside AF / NA
+  const QS = new URLSearchParams(location.search);
+  const DEMO_ADD = !QS.has("viewer") && !QS.has("na");
+  const DEMO_STAFF = !QS.has("viewer");
   const $app = document.getElementById("app");
   const $top = document.getElementById("topRight");
   const $drawer = document.getElementById("drawer");
   const $scrim = document.getElementById("scrim");
+  const $nav = document.getElementById("nav");
+  // two views in one page: home (landing) and #dashboard — one MSAL redirect URI, one sign-in
+  const view = () => (location.hash === "#dashboard" ? "dashboard" : "home");
 
   // ---------- status (same set as FIRMS Recorder nfStatus) ----------
   const STATUS = [
@@ -24,7 +31,7 @@
 
   // ---------- state ----------
   const S = {
-    account: null, canAdd: false, loadedAt: null, loading: false,
+    account: null, canAdd: false, isStaff: false, loadedAt: null, loading: false,
     fac: [], recs: [], types: {},
     f: { status: "", branch: "", site: "", type: "", q: "", month: "" },
     open: null
@@ -60,6 +67,12 @@
     refresh: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>',
     x: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M6 6l12 12M18 6L6 18"/></svg>',
     plus: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M12 5v14M5 12h14"/></svg>',
+    grid: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>',
+    pen: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg>',
+    lock: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>',
+    folder: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 6a1 1 0 0 1 1-1h5l2 2h9a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/></svg>',
+    arrow: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>',
+    ext: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 4h6v6M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>',
     file: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z"/><path d="M14 3v5h5"/></svg>'
   };
   function initials(name) {
@@ -162,21 +175,23 @@
       by: x.Author?.Title || "", created: x.Created || ""
     }));
     if (S.missing.length) console.warn("FIRMS: columns not found", S.missing);
-    S.canAdd = DEMO ? true : (raw.groups || []).some(g => C.recorderGroups.includes(g));
+    setGroups(DEMO ? null : (raw.groups || []));
     S.loadedAt = new Date();
   }
 
   async function load(first) {
     if (S.loading) return;
     S.loading = true; renderTop();
-    if (first) $app.innerHTML = skeleton();
+    if (first && view() === "dashboard") $app.innerHTML = skeleton();
     try {
       const raw = await fetchAll();
       if (!raw) return;
       normalize(raw);
+      if (view() !== "dashboard") return;
       render();
       if (S.open) openDrawer(S.open, true);
     } catch (e) {
+      if (view() !== "dashboard") { console.warn("FIRMS:", e); return; }
       const denied = e.status === 401 || e.status === 403;
       $app.innerHTML = stateCard(denied ? "บัญชีนี้ยังไม่มีสิทธิ์อ่านข้อมูล FIRMS" : "โหลดข้อมูลไม่สำเร็จ",
         denied ? "กรุณาติดต่อ Admin กอง NA เพื่อขอสิทธิ์อ่านทะเบียน Facility และผลการบินทดสอบ" : "ลองโหลดใหม่อีกครั้ง ถ้ายังไม่ได้ ส่งข้อความด้านล่างให้ Admin",
@@ -200,17 +215,26 @@
 
   // ---------- render ----------
   function renderTop() {
+    const v = view();
+    $nav.innerHTML = (S.account || DEMO) && v === "dashboard" ? `<a href="#" ${v === "home" ? 'aria-current="page"' : ""}>หน้าแรก</a><a href="#dashboard" ${v === "dashboard" ? 'aria-current="page"' : ""}>Dashboard</a>` : "";
     if (!S.account && !DEMO) { $top.innerHTML = ""; return; }
     const name = DEMO ? "ผู้ใช้ตัวอย่าง" : (S.account.name || S.account.username);
     const mail = DEMO ? "demo" : S.account.username;
+    if (v === "home") {
+      $top.innerHTML = `${DEMO ? '<span class="demo-flag">ข้อมูลตัวอย่าง</span>' : ""}<span class="home-user">${esc(name)}</span>
+        ${DEMO ? "" : '<button class="text-btn" id="logout">ออกจากระบบ</button>'}`;
+      const lo = document.getElementById("logout");
+      if (lo) lo.onclick = () => pca.logoutRedirect({ account: S.account, postLogoutRedirectUri: C.redirectUri });
+      return;
+    }
     $top.innerHTML = `
       ${DEMO ? '<span class="demo-flag">ข้อมูลตัวอย่าง</span>' : ""}
-      <div class="stamp">${S.loadedAt ? "ข้อมูล ณ<br>" + stamp(S.loadedAt) : ""}</div>
-      <button class="icon-btn${S.loading ? " spin" : ""}" id="reload" title="โหลดข้อมูลใหม่" aria-label="โหลดข้อมูลใหม่">${ICON.refresh}</button>
+      ${v === "dashboard" ? `<div class="stamp">${S.loadedAt ? "ข้อมูล ณ<br>" + stamp(S.loadedAt) : ""}</div>
+      <button class="icon-btn${S.loading ? " spin" : ""}" id="reload" title="โหลดข้อมูลใหม่" aria-label="โหลดข้อมูลใหม่">${ICON.refresh}</button>` : ""}
       <div class="user"><div class="who"><b>${esc(name)}</b><span>${esc(mail)}</span></div>
       <div class="avatar" title="${esc(name)}">${esc(initials(name))}</div>
       ${DEMO ? "" : `<button class="icon-btn" id="logout" title="ออกจากระบบ" aria-label="ออกจากระบบ"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10"/></svg></button>`}</div>`;
-    document.getElementById("reload").onclick = () => load(false);
+    const rl = document.getElementById("reload"); if (rl) rl.onclick = () => load(false);
     const lo = document.getElementById("logout");
     if (lo) lo.onclick = () => pca.logoutRedirect({ account: S.account, postLogoutRedirectUri: C.redirectUri });
   }
@@ -359,6 +383,67 @@
   $scrim.onclick = closeDrawer;
   document.addEventListener("keydown", e => { if (e.key === "Escape" && !$drawer.hidden) closeDrawer(); });
 
+  // ---------- home (landing) ----------
+  function setGroups(g) { // g = SharePoint group titles of the current user; null in demo
+    S.canAdd = g ? g.some(x => C.recorderGroups.includes(x)) : DEMO_ADD;
+    S.isStaff = g ? g.some(x => (C.staffGroups || C.recorderGroups).includes(x)) : DEMO_STAFF;
+    S.groupsChecked = true;
+  }
+  async function checkGroups() {
+    if (DEMO) return setGroups(null);
+    if (S.groupsChecked) return;
+    try {
+      const tk = await token(); if (!tk) return;
+      setGroups(await sp(tk, "/_api/web/currentuser/groups?$select=Title").then(d => d.value.map(x => x.Title)));
+    } catch (e) { console.warn("FIRMS: group check failed", e); }
+  }
+  function tile(n, en, title, desc, act, href, ext) {
+    return `<a class="tile" href="${esc(href)}"${ext ? ' target="_blank" rel="noopener"' : ""}>
+      <span class="tile-top"><span class="num">${n}</span><span class="en">${esc(en)}</span></span>
+      <span class="t">${esc(title)}</span><span class="d">${esc(desc)}</span>
+      <span class="tile-go"><span class="act">${esc(act)}</span><span class="circ">${ext ? ICON.ext : ICON.arrow}</span></span></a>`;
+  }
+  function lockedTile(n, en, title) {
+    return `<div class="tile off" aria-disabled="true">
+      <span class="tile-top"><span class="num">${n}</span><span class="en">${esc(en)}</span></span>
+      <span class="t">${esc(title)}</span><span class="d">เฉพาะเจ้าหน้าที่กอง AF และกอง NA</span>
+      <span class="tile-go"><span class="act">ไม่มีสิทธิ์ใช้งาน</span><span class="circ">${ICON.lock}</span></span></div>`;
+  }
+  function renderHome() {
+    const libUrl = C.siteUrl + "/" + C.libraryUrl + "/Forms/AllItems.aspx";
+    const rec = !S.isStaff ? lockedTile("02", "FIRMS Recorder", "บันทึกผลการบินทดสอบ")
+      : S.canAdd ? tile("02", "FIRMS Recorder", "บันทึกผลการบินทดสอบ", "บันทึกผลบินครั้งใหม่ พร้อมแนบรายงานและหนังสือแจ้งผล", "บันทึกผล", recorderLink(), true)
+      : tile("02", "FIRMS Recorder", "บันทึกผลการบินทดสอบ", "ดูทะเบียน Facility และประวัติผลบินในแอป (ดูอย่างเดียว · บันทึกได้เฉพาะกอง AF)", "เปิดดู", recorderLink(), true);
+    const lib = S.isStaff ? tile("03", "Document", "โฟลเดอร์รายงานผล", "ไฟล์รายงานและหนังสือแจ้งผล แยกตามสถานที่และประเภทเครื่อง", "เปิดโฟลเดอร์", libUrl, true)
+      : lockedTile("03", "Document", "โฟลเดอร์รายงานผล");
+    $app.innerHTML = `
+      <section class="home">
+        <p class="home-kicker">ฐานข้อมูลรายงานผลการบินทดสอบ</p>
+        <h1 class="home-title">Flight Inspection Report<br>Management System</h1>
+        <nav class="tiles" aria-label="เมนูหลัก">
+          ${tile("01", "Dashboard", "ภาพรวมการบินทดสอบ", "สถานะทุก Facility, Next Due และประวัติผลการบินทดสอบ", "เปิด Dashboard", "#dashboard", false)}
+          ${rec}
+          ${lib}
+        </nav>
+      </section>`;
+  }
+  async function route() {
+    const v = view();
+    document.title = v === "dashboard" ? "FIRMS · Dashboard" : "FIRMS";
+    if (v !== "dashboard" && !$drawer.hidden) closeDrawer();
+    document.body.classList.toggle("is-home", v === "home");
+    renderTop();
+    window.scrollTo(0, 0);
+    if (v === "home") {
+      if (!S.groupsChecked && !DEMO) $app.innerHTML = `<section class="home"><div class="skeleton" style="height:16px;width:240px"></div><div class="skeleton" style="height:48px;width:min(560px,100%);margin-top:16px"></div><div class="tiles"><div class="tile skel"></div><div class="tile skel"></div><div class="tile skel"></div></div></section>`;
+      await checkGroups();
+      if (view() === "home") renderHome();
+      return;
+    }
+    if (S.loadedAt) render(); else await load(true);
+  }
+  window.addEventListener("hashchange", () => { if (S.account || DEMO) route(); });
+
   // ---------- states ----------
   function stateCard(title, text, err, action) {
     return `<div class="state"><img src="assets/firms-icon.png" alt="" width="64" height="64"><h1>${esc(title)}</h1><p>${esc(text)}</p>${err ? `<div class="err">${esc(err)}</div>` : ""}${action || ""}</div>`;
@@ -370,12 +455,12 @@
 
   // ---------- refresh when returning to the tab ----------
   document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible" && S.loadedAt && (Date.now() - S.loadedAt) / 60000 > C.staleMinutes) load(false);
+    if (document.visibilityState === "visible" && view() === "dashboard" && S.loadedAt && (Date.now() - S.loadedAt) / 60000 > C.staleMinutes) load(false);
   });
 
   // ---------- boot ----------
   (async () => {
-    if (DEMO) { renderTop(); return load(true); }
+    if (DEMO) return route();
     try {
       pca = new msal.PublicClientApplication({
         auth: { clientId: C.clientId, authority: "https://login.microsoftonline.com/" + C.tenantId, redirectUri: C.redirectUri },
@@ -385,13 +470,13 @@
       const resp = await pca.handleRedirectPromise();
       const account = resp?.account || pca.getAllAccounts()[0];
       if (!account) {
-        $app.innerHTML = stateCard("FIRMS Dashboard", "ทะเบียน Facility และผลการบินทดสอบเครื่องช่วยการเดินอากาศ · เข้าสู่ระบบด้วยบัญชี CAAT", "",
+        $app.innerHTML = stateCard("FIRMS", "ฐานข้อมูลรายงานผลการบินทดสอบ · เข้าสู่ระบบด้วยบัญชี CAAT", "",
           `<button class="btn" id="login">เข้าสู่ระบบด้วยบัญชี CAAT</button>`);
         document.getElementById("login").onclick = () => pca.loginRedirect({ scopes: [C.spScope] });
         return;
       }
-      pca.setActiveAccount(account); S.account = account; renderTop();
-      await load(true);
+      pca.setActiveAccount(account); S.account = account;
+      await route();
     } catch (e) {
       $app.innerHTML = stateCard("เข้าสู่ระบบไม่สำเร็จ", "ลองใหม่อีกครั้ง ถ้ายังไม่ได้ ส่งข้อความด้านล่างให้ Admin",
         e.errorCode ? e.errorCode + ": " + e.errorMessage : e.message, `<button class="btn" id="login">ลองใหม่</button>`);
