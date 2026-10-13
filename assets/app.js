@@ -3,7 +3,7 @@
   "use strict";
   const C = window.FIRMS_CONFIG;
   const DEMO = new URLSearchParams(location.search).has("demo");
-  // demo previews: ?demo = AF / Admin · ?demo&na = NA (view-only Recorder) · ?demo&viewer = outside AF / NA
+  // demo previews: ?demo = AF / Admin · ?demo&na = NA · ?demo&viewer = outside AF / NA
   const QS = new URLSearchParams(location.search);
   const DEMO_ADD = !QS.has("viewer") && !QS.has("na");
   const DEMO_STAFF = !QS.has("viewer");
@@ -216,7 +216,12 @@
   // ---------- render ----------
   function renderTop() {
     const v = view();
-    $nav.innerHTML = (S.account || DEMO) && v === "dashboard" ? `<a href="#" ${v === "home" ? 'aria-current="page"' : ""}>หน้าแรก</a><a href="#dashboard" ${v === "dashboard" ? 'aria-current="page"' : ""}>Dashboard</a>` : "";
+    const libUrl = C.siteUrl + "/" + C.libraryUrl + "/Forms/AllItems.aspx";
+    $nav.innerHTML = (S.account || DEMO) && v === "dashboard"
+      ? `<a href="#dashboard" aria-current="page">Dashboard</a>` +
+        (S.canAdd ? `<a href="${esc(recorderLink())}" target="_blank" rel="noopener">FIRMS Recorder ${ICON.ext}</a>` : "") +
+        (S.isStaff ? `<a href="${esc(libUrl)}" target="_blank" rel="noopener">โฟลเดอร์รายงาน ${ICON.ext}</a>` : "")
+      : "";
     if (!S.account && !DEMO) { $top.innerHTML = ""; return; }
     const name = DEMO ? "ผู้ใช้ตัวอย่าง" : (S.account.name || S.account.username);
     const mail = DEMO ? "demo" : S.account.username;
@@ -263,11 +268,10 @@
     if (f.month) { const mm = months.find(x => x.k === f.month); chips.push(["month", "ครบ Next Due " + (mm ? MONTHS[+f.month.slice(5) - 1] + " " + f.month.slice(0, 4) : f.month)]); }
     if (f.status) chips.push(["status", ST[f.status].label]);
 
-    $app.style.setProperty("--act-col", S.canAdd ? "96px" : "0px");
+    $app.style.setProperty("--act-col", "0px");
     $app.innerHTML = `
       <div class="page-head">
         <div><h1>ทะเบียนการบินทดสอบ</h1><p>Facility ที่ใบอนุญาตมีผล ${S.fac.length} รายการ · ${nSites} สถานที่</p></div>
-        ${S.canAdd ? `<a class="btn act" href="${esc(recorderLink())}" target="_blank" rel="noopener">${ICON.plus} บันทึกผลการบินทดสอบ</a>` : ""}
       </div>
 
       ${S.missing.length ? `<div class="notice">ไม่พบคอลัมน์ใน SharePoint: ${esc(S.missing.join(", "))} · ข้อมูลส่วนนี้จะว่าง แจ้ง Admin</div>` : ""}
@@ -293,7 +297,7 @@
       </div>
 
       <section class="panel table" aria-label="รายการ Facility">
-        <div class="tr th"><span class="c-site">Site</span><span class="c-fac">Facility</span><span class="c-holder">ผู้ให้บริการ</span><span class="c-lic">ใบอนุญาต</span><span class="c-status">สถานะ</span><span class="c-last">ผ่านล่าสุด</span><span class="c-next">Next Due</span><span class="c-ext">Extendable</span>${S.canAdd ? '<span class="c-act"></span>' : ""}</div>
+        <div class="tr th"><span class="c-site">Site</span><span class="c-fac">Facility</span><span class="c-holder">ผู้ให้บริการ</span><span class="c-lic">ใบอนุญาต</span><span class="c-status">สถานะ</span><span class="c-last">ผ่านล่าสุด</span><span class="c-next">Next Due</span><span class="c-ext">Extendable</span></div>
         ${rows.length ? rows.map(rowHtml).join("") : `<div class="empty">ไม่พบ Facility ตามเงื่อนไข</div>`}
       </section>`;
     bind();
@@ -311,7 +315,6 @@
       <span class="c-last dim num">${dmy(x.last)}</span>
       <span class="c-next num"><span class="lbl-m">Next Due </span>${dmy(x.next)}<span class="lbl-m"> · Ext. ${dmy(x.ext)}</span></span>
       <span class="c-ext dim num">${dmy(x.ext)}</span>
-      ${S.canAdd ? `<span class="c-act"><a class="btn ghost sm" href="${esc(recorderLink(x.lic))}" target="_blank" rel="noopener" data-stop>บันทึกผล</a></span>` : ""}
     </div>`;
   }
 
@@ -403,19 +406,19 @@
       <span class="t">${esc(title)}</span><span class="d">${esc(desc)}</span>
       <span class="tile-go"><span class="act">${esc(act)}</span><span class="circ">${ext ? ICON.ext : ICON.arrow}</span></span></a>`;
   }
-  function lockedTile(n, en, title) {
+  function lockedTile(n, en, title, why) {
     return `<div class="tile off" aria-disabled="true">
       <span class="tile-top"><span class="num">${n}</span><span class="en">${esc(en)}</span></span>
-      <span class="t">${esc(title)}</span><span class="d">เฉพาะเจ้าหน้าที่กอง AF และกอง NA</span>
+      <span class="t">${esc(title)}</span><span class="d">${esc(why)}</span>
       <span class="tile-go"><span class="act">ไม่มีสิทธิ์ใช้งาน</span><span class="circ">${ICON.lock}</span></span></div>`;
   }
   function renderHome() {
     const libUrl = C.siteUrl + "/" + C.libraryUrl + "/Forms/AllItems.aspx";
-    const rec = !S.isStaff ? lockedTile("02", "FIRMS Recorder", "บันทึกผลการบินทดสอบ")
-      : S.canAdd ? tile("02", "FIRMS Recorder", "บันทึกผลการบินทดสอบ", "บันทึกผลบินครั้งใหม่ พร้อมแนบรายงานและหนังสือแจ้งผล", "บันทึกผล", recorderLink(), true)
-      : tile("02", "FIRMS Recorder", "บันทึกผลการบินทดสอบ", "ดูทะเบียน Facility และประวัติผลบินในแอป (ดูอย่างเดียว · บันทึกได้เฉพาะกอง AF)", "เปิดดู", recorderLink(), true);
+    const rec = S.canAdd
+      ? tile("02", "FIRMS Recorder", "บันทึกผลการบินทดสอบ", "บันทึกผลบินครั้งใหม่ พร้อมแนบรายงานและหนังสือแจ้งผล", "บันทึกผล", recorderLink(), true)
+      : lockedTile("02", "FIRMS Recorder", "บันทึกผลการบินทดสอบ", "เฉพาะเจ้าหน้าที่กอง AF ที่ได้รับสิทธิ์บันทึกผล");
     const lib = S.isStaff ? tile("03", "Document", "โฟลเดอร์รายงานผล", "ไฟล์รายงานและหนังสือแจ้งผล แยกตามสถานที่และประเภทเครื่อง", "เปิดโฟลเดอร์", libUrl, true)
-      : lockedTile("03", "Document", "โฟลเดอร์รายงานผล");
+      : lockedTile("03", "Document", "โฟลเดอร์รายงานผล", "เฉพาะเจ้าหน้าที่กอง AF และกอง NA");
     $app.innerHTML = `
       <section class="home">
         <p class="home-kicker">ฐานข้อมูลรายงานผลการบินทดสอบ</p>
