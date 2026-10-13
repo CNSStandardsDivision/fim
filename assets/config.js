@@ -12,6 +12,9 @@ window.FIRMS_CONFIG = {
   // กลุ่ม SharePoint ที่เห็นปุ่มบันทึกผล
   recorderGroups: ["FIM-AF", "FIM-Admin"],
 
+  // URL ของ Document Library (ชื่อที่แสดง: CNS-FIM Documents)
+  libraryUrl: "FIMDocuments",
+
   lists: {
     facilities: "FIM_Facilities",
     records: "FIM_Records",

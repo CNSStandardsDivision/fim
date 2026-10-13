@@ -48,6 +48,12 @@
   const url = v => !v ? "" : typeof v === "string" ? v.split(",")[0].trim() : (v.Url || "");
   const pill = k => { const s = ST[k] || ST["No Record"]; return `<span class="pill" style="background:${s.bg};color:${s.fg}"><i style="background:${s.dot}"></i>${esc(s.label)}</span>`; };
   const recorderLink = lic => C.recorderUrl + (lic ? "&facility=" + encodeURIComponent(lic) : "");
+  // same folder rule as F1 TypeFolder: "/" -> "-", drop "(" ")", trim
+  const folderLink = x => {
+    const sitePath = new URL(C.siteUrl).pathname;
+    const typeFolder = String(x.type || "").replace(/\//g, "-").replace(/[()]/g, "").trim();
+    return C.siteUrl + "/" + C.libraryUrl + "/Forms/AllItems.aspx?id=" + encodeURIComponent(sitePath + "/" + C.libraryUrl + "/" + x.site + "/" + typeFolder);
+  };
   const stamp = d => d ? `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}` : "";
   const ICON = {
     search: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>',
@@ -312,7 +318,7 @@
         <h2 id="dTitle">${esc(x.site)}</h2>
         <h3>${esc(x.type)}</h3>
         <p>${esc(x.name)}<br>ใบอนุญาต ${esc(x.lic)}${x.holder ? " · " + esc(x.holder) : ""}</p>
-        <div class="row2">${pill(x.key)}${S.canAdd ? `<a class="btn sm" href="${esc(recorderLink(x.lic))}" target="_blank" rel="noopener">${ICON.plus} บันทึกผลของ Facility นี้</a>` : ""}</div>
+        <div class="row2">${pill(x.key)}<a class="btn ghost sm" href="${esc(folderLink(x))}" target="_blank" rel="noopener">${ICON.file} โฟลเดอร์ไฟล์</a>${S.canAdd ? `<a class="btn sm" href="${esc(recorderLink(x.lic))}" target="_blank" rel="noopener">${ICON.plus} บันทึกผลของ Facility นี้</a>` : ""}</div>
       </div>
       <div class="d-body">
         <dl class="facts">
