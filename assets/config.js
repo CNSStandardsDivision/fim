@@ -12,10 +12,6 @@ window.FIRMS_CONFIG = {
   // กลุ่ม SharePoint ที่บันทึกผลได้: การ์ด FIRMS Recorder บนหน้าแรก + ปุ่มบันทึกผลใน Dashboard
   recorderGroups: ["FIM-AF", "FIM-Admin"],
 
-  // กลุ่ม SharePoint ของเจ้าหน้าที่กอง AF / NA: หน้าแรกเปิดการ์ดโฟลเดอร์รายงานให้
-  // (การ์ด FIRMS Recorder ใช้ recorderGroups) · ชื่อกลุ่มต้องตรงกับใน SharePoint ทุกตัวอักษร
-  staffGroups: ["FIM-AF", "FIM-Admin", "ANSNA SharePoint Members"],
-
   // URL ของ Document Library (ชื่อที่แสดง: CNS-FIM Documents)
   libraryUrl: "FIMDocuments",
 

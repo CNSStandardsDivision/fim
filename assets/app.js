@@ -3,10 +3,9 @@
   "use strict";
   const C = window.FIRMS_CONFIG;
   const DEMO = new URLSearchParams(location.search).has("demo");
-  // demo previews: ?demo = AF / Admin · ?demo&na = NA · ?demo&viewer = outside AF / NA
+  // demo previews: ?demo = AF / Admin · ?demo&na (or &viewer) = not a recorder
   const QS = new URLSearchParams(location.search);
   const DEMO_ADD = !QS.has("viewer") && !QS.has("na");
-  const DEMO_STAFF = !QS.has("viewer");
   const $app = document.getElementById("app");
   const $top = document.getElementById("topRight");
   const $drawer = document.getElementById("drawer");
@@ -31,7 +30,7 @@
 
   // ---------- state ----------
   const S = {
-    account: null, canAdd: false, isStaff: false, loadedAt: null, loading: false,
+    account: null, canAdd: false, loadedAt: null, loading: false,
     fac: [], recs: [], types: {},
     f: { status: "", branch: "", site: "", type: "", q: "", month: "" },
     open: null
@@ -220,7 +219,7 @@
     $nav.innerHTML = (S.account || DEMO) && v === "dashboard"
       ? `<a href="#dashboard" aria-current="page">Dashboard</a>` +
         (S.canAdd ? `<a href="${esc(recorderLink())}" target="_blank" rel="noopener">FIRMS Recorder ${ICON.ext}</a>` : "") +
-        (S.isStaff ? `<a href="${esc(libUrl)}" target="_blank" rel="noopener">โฟลเดอร์รายงาน ${ICON.ext}</a>` : "")
+        `<a href="${esc(libUrl)}" target="_blank" rel="noopener">โฟลเดอร์รายงาน ${ICON.ext}</a>`
       : "";
     if (!S.account && !DEMO) { $top.innerHTML = ""; return; }
     const name = DEMO ? "ผู้ใช้ตัวอย่าง" : (S.account.name || S.account.username);
@@ -389,7 +388,6 @@
   // ---------- home (landing) ----------
   function setGroups(g) { // g = SharePoint group titles of the current user; null in demo
     S.canAdd = g ? g.some(x => C.recorderGroups.includes(x)) : DEMO_ADD;
-    S.isStaff = g ? g.some(x => (C.staffGroups || C.recorderGroups).includes(x)) : DEMO_STAFF;
     S.groupsChecked = true;
   }
   async function checkGroups() {
@@ -417,8 +415,9 @@
     const rec = S.canAdd
       ? tile("02", "FIRMS Recorder", "บันทึกผลการบินทดสอบ", "บันทึกผลบินครั้งใหม่ พร้อมแนบรายงานและหนังสือแจ้งผล", "บันทึกผล", recorderLink(), true)
       : lockedTile("02", "FIRMS Recorder", "บันทึกผลการบินทดสอบ", "เฉพาะเจ้าหน้าที่กอง AF ที่ได้รับสิทธิ์บันทึกผล");
-    const lib = S.isStaff ? tile("03", "Document", "โฟลเดอร์รายงานผล", "ไฟล์รายงานและหนังสือแจ้งผล แยกตามสถานที่และประเภทเครื่อง", "เปิดโฟลเดอร์", libUrl, true)
-      : lockedTile("03", "Document", "โฟลเดอร์รายงานผล", "เฉพาะเจ้าหน้าที่กอง AF และกอง NA");
+    // folder: open to everyone signed in; SharePoint itself decides who can read it
+    // (the NA Members group holds the Microsoft 365 group, which /currentuser/groups does not expand)
+    const lib = tile("03", "Document", "โฟลเดอร์รายงานผล", "ไฟล์รายงานและหนังสือแจ้งผล แยกตามสถานที่และประเภทเครื่อง", "เปิดโฟลเดอร์", libUrl, true);
     $app.innerHTML = `
       <section class="home">
         <p class="home-kicker">ฐานข้อมูลรายงานผลการบินทดสอบ</p>
