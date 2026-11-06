@@ -28,11 +28,22 @@
   const RESULT_COLOR = { Unrestricted: "#2F6446", Restricted: "#7A5713", Unusable: "#8E2F2F" };
   const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
+  // ---------- restriction vs previous pass (CL-15 · FIM_Records.RestrictionChange) ----------
+  const LIFTED = "ยกเลิกข้อจำกัด";
+  const CHG = {
+    "ข้อจำกัดใหม่":  { short: "ข้อจำกัดใหม่", head: "Restricted · ข้อจำกัดใหม่", sub: "ครั้งก่อนไม่มีข้อจำกัด", hot: true },
+    "ต่างจากเดิม":   { short: "ต่างจากเดิม",  head: "Restricted · ข้อจำกัดต่างจากครั้งก่อน", sub: "AF ระบุว่าข้อจำกัดเปลี่ยนไปจากครั้งก่อน", hot: true },
+    "เหมือนเดิม":    { short: "เหมือนเดิม",   head: "Restricted · ข้อจำกัดเหมือนครั้งก่อน", sub: "AF ระบุว่าข้อจำกัดเหมือนครั้งก่อน", hot: false },
+    [LIFTED]:        { short: "ยกเลิกข้อจำกัด", head: "ยกเลิกข้อจำกัดแล้ว", sub: "ผลล่าสุด Unrestricted · ครั้งก่อน Restricted", ok: true }
+  };
+  const HOT = ["ข้อจำกัดใหม่", "ต่างจากเดิม"];
+
   // ---------- state ----------
+  const NOF = () => ({ status: "", branch: "", site: "", type: "", res: "", q: "", month: "" });
   const S = {
     account: null, canAdd: false, loadedAt: null, loading: false,
     fac: [], recs: [], types: {},
-    f: { status: "", branch: "", site: "", type: "", q: "", month: "" },
+    f: NOF(),
     open: null
   };
 
@@ -53,6 +64,14 @@
   }
   const url = v => !v ? "" : typeof v === "string" ? v.split(",")[0].trim() : (v.Url || "");
   const pill = k => { const s = ST[k] || ST["No Record"]; return `<span class="pill" style="background:${s.bg};color:${s.fg}"><i style="background:${s.dot}"></i>${esc(s.label)}</span>`; };
+  // restriction tag: kind = RestrictionChange value, "Restricted" (no comparison data) or ""
+  function rtag(kind, prefix, title) {
+    if (!kind) return "";
+    const c = CHG[kind];
+    const text = kind === LIFTED ? LIFTED : (prefix ? "Restricted" + (c ? " · " + c.short : "") : (c ? c.short : "Restricted"));
+    const cls = kind === LIFTED ? " ok" : c && c.hot ? " hot" : "";
+    return `<span class="rtag${cls}"${title ? ` title="${esc(title)}"` : ""}>${esc(text)}</span>`;
+  }
   const recorderLink = lic => C.recorderUrl + (lic ? "&facility=" + encodeURIComponent(lic) : "");
   // same folder rule as F1 TypeFolder: "/" -> "-", drop "(" ")", trim
   const folderLink = x => {
@@ -110,9 +129,12 @@
     records: { Title: ["Title"], Facility: ["Facility"], FlightDateStart: ["FlightDateStart"], FlightDate: ["FlightDate"], InspectionType: ["InspectionType"],
       Result: ["Result"], Measure: ["Measure"], MeasureCompleted: ["MeasureCompleted"], NextDueDate: ["NextDueDate"], ExtendableDueDate: ["ExtendableDueDate"],
       CertifiedDate: ["CertifiedDate"], LetterNo: ["LetterNo"], LetterDate: ["LetterDate"], FileLink: ["FileLink"], LetterLink: ["LetterLink"],
-      Note: ["Note"], IsBaseline: ["IsBaseline"] },
+      Note: ["Note"], IsBaseline: ["IsBaseline"],
+      RestrictionChange: ["RestrictionChange"], RestrictionPrev: ["RestrictionPrev"], RestrictionPrevLink: ["RestrictionPrevLink"] },
     types: { Title: ["Title"], IntervalValue: ["IntervalValue"], IntervalUnit: ["IntervalUnit"] }
   };
+  // columns added later (CL-15): if not created yet the dashboard simply shows no restriction info, without the "missing column" notice
+  const OPTIONAL = new Set(["records.RestrictionChange", "records.RestrictionPrev", "records.RestrictionPrevLink"]);
   S.missing = [];
 
   // fields: [{InternalName, Title, TypeAsString}] -> getter(item, wantedName)
@@ -125,7 +147,7 @@
         f = fields.find(x => x.InternalName === c) || fields.find(x => String(x.Title).toLowerCase() === c.toLowerCase());
         if (f) break;
       }
-      if (!f) { S.missing.push(C.lists[listKey] + "." + want); map[want] = { key: want }; continue; }
+      if (!f) { if (!OPTIONAL.has(listKey + "." + want)) S.missing.push(C.lists[listKey] + "." + want); map[want] = { key: want }; continue; }
       const lookup = /^Lookup/.test(f.TypeAsString || "");
       map[want] = { key: lookup ? f.InternalName + "Id" : f.InternalName };
     }
@@ -171,11 +193,26 @@
       measure: gr(x, "Measure") || "", done: !!gr(x, "MeasureCompleted"), next: day(gr(x, "NextDueDate")), ext: day(gr(x, "ExtendableDueDate")),
       cert: day(gr(x, "CertifiedDate")), letterNo: gr(x, "LetterNo") || "", letterDate: day(gr(x, "LetterDate")),
       file: url(gr(x, "FileLink")), letter: url(gr(x, "LetterLink")), note: gr(x, "Note") || "", baseline: !!gr(x, "IsBaseline"),
+      chg: gr(x, "RestrictionChange") || "", prev: gr(x, "RestrictionPrev") || "", prevLink: url(gr(x, "RestrictionPrevLink")),
       by: x.Author?.Title || "", created: x.Created || ""
     }));
+    // latest pass of each facility (the record behind LastInspection) and its restriction state
+    const isPass = r => r.result === "Unrestricted" || r.result === "Restricted";
+    S.fac.forEach(x => {
+      const mine = S.recs.filter(r => r.facId === x.id && isPass(r));
+      x.lr = (x.lastRec && mine.find(r => r.fir === x.lastRec)) || mine.find(r => x.last && r.end === x.last) || null;
+      x.rk = restrKind(x);
+    });
     if (S.missing.length) console.warn("FIRMS: columns not found", S.missing);
     setGroups(DEMO ? null : (raw.groups || []));
     S.loadedAt = new Date();
+  }
+  // "" · "Restricted" (no comparison data) · RestrictionChange value — only while the facility is in service
+  function restrKind(x) {
+    const r = x.lr;
+    if (!r || x.key === "Action Pending" || x.key === "Out of Service") return "";
+    if (r.result === "Restricted") return CHG[r.chg] && r.chg !== LIFTED ? r.chg : "Restricted";
+    return r.chg === LIFTED ? LIFTED : "";
   }
 
   async function load(first) {
@@ -200,6 +237,7 @@
   }
 
   // ---------- filtering ----------
+  const resOk = (x, res) => !res || (res === "r" ? !!x.rk && x.rk !== LIFTED : res === "chg" ? HOT.includes(x.rk) : x.rk === LIFTED);
   function filtered(ignore) {
     const f = S.f, q = f.q.trim().toLowerCase();
     return S.fac.filter(x =>
@@ -207,6 +245,7 @@
       (!f.branch || x.branch === f.branch) &&
       (!f.site || x.site === f.site) &&
       (!f.type || x.base === f.type) &&
+      resOk(x, f.res) &&
       (ignore === "month" || !f.month || (x.next && x.next.slice(0, 7) === f.month)) &&
       (!q || [x.site, x.name, x.type, x.lic, x.holder].join(" ").toLowerCase().includes(q))
     ).sort((a, b) => (ST[a.key]?.sort ?? 9) - (ST[b.key]?.sort ?? 9) || (a.next || "9999").localeCompare(b.next || "9999") || a.site.localeCompare(b.site));
@@ -251,6 +290,7 @@
     const sites = [...new Set(S.fac.map(x => x.site))].sort();
     const types = [...new Set(S.fac.map(x => x.base))].filter(Boolean).sort();
     const nSites = new Set(S.fac.map(x => x.site)).size;
+    const nR = S.fac.filter(x => resOk(x, "r")).length, nHot = S.fac.filter(x => resOk(x, "chg")).length, nLift = S.fac.filter(x => resOk(x, "lift")).length;
 
     // 12-month workload from current month
     const t = today(); let y = +t.slice(0, 4), m = +t.slice(5, 7) - 1;
@@ -291,12 +331,16 @@
         <select id="fBranch" aria-label="สาขา"><option value="">ทุกสาขา</option><option value="N"${f.branch === "N" ? " selected" : ""}>สาขา N (NAV)</option><option value="S"${f.branch === "S" ? " selected" : ""}>สาขา S (SUR)</option></select>
         <select id="fSite" aria-label="สถานที่"><option value="">ทุกสถานที่</option>${sites.map(s => `<option${f.site === s ? " selected" : ""}>${esc(s)}</option>`).join("")}</select>
         <select id="fType" aria-label="ประเภท"><option value="">ทุกประเภท</option>${types.map(s => `<option${f.type === s ? " selected" : ""}>${esc(s)}</option>`).join("")}</select>
+        <select id="fRes" aria-label="ข้อจำกัด"><option value="">ทุกผลการบิน</option>
+          <option value="r"${f.res === "r" ? " selected" : ""}>Restricted ทั้งหมด (${nR})</option>
+          <option value="chg"${f.res === "chg" ? " selected" : ""}>ข้อจำกัดใหม่ / ต่างจากเดิม (${nHot})</option>
+          <option value="lift"${f.res === "lift" ? " selected" : ""}>ยกเลิกข้อจำกัด (${nLift})</option></select>
         <div class="chips">${chips.map(([k, l]) => `<span class="chip">${esc(l)}<button data-clear="${k}" aria-label="ล้างตัวกรอง">${ICON.x}</button></span>`).join("")}</div>
-        <span class="count">${rows.length} รายการ${(f.status || f.branch || f.site || f.type || f.q || f.month) ? ` · <button class="linkbtn" id="clearAll">ล้างตัวกรอง</button>` : ""}</span>
+        <span class="count">${rows.length} รายการ${(f.status || f.branch || f.site || f.type || f.res || f.q || f.month) ? ` · <button class="linkbtn" id="clearAll">ล้างตัวกรอง</button>` : ""}</span>
       </div>
 
       <section class="panel table" aria-label="รายการ Facility">
-        <div class="tr th"><span class="c-site">Site</span><span class="c-fac">Facility</span><span class="c-holder">ผู้ให้บริการ</span><span class="c-lic">ใบอนุญาต</span><span class="c-status">สถานะ</span><span class="c-last">ผ่านล่าสุด</span><span class="c-next">Next Due</span><span class="c-ext">Extendable</span></div>
+        <div class="tr th"><span class="c-site">Site</span><span class="c-fac">Facility</span><span class="c-holder">ผู้ให้บริการ</span><span class="c-lic">ใบอนุญาต</span><span class="c-status">สถานะ · ข้อจำกัด</span><span class="c-last">ผ่านล่าสุด</span><span class="c-next">Next Due</span><span class="c-ext">Extendable</span></div>
         ${rows.length ? rows.map(rowHtml).join("") : `<div class="empty">ไม่พบ Facility ตามเงื่อนไข</div>`}
       </section>`;
     bind();
@@ -305,12 +349,13 @@
   function rowHtml(x) {
     const s = ST[x.key] || ST["No Record"];
     const flag = x.key === "Expired" || x.key === "PastDue";
+    const tip = x.rk ? (CHG[x.rk] ? CHG[x.rk].head : "Restricted · ไม่มีข้อมูลเทียบกับครั้งก่อน") + (x.lr?.prev ? " (เทียบกับ " + x.lr.prev + ")" : "") : "";
     return `<div class="tr row${flag ? " flag" : ""}" style="${flag ? "--flag:" + s.dot : ""}" data-id="${x.id}" tabindex="0" role="button" aria-label="${esc(x.site + " " + x.type)}">
       <span class="c-site site">${esc(x.site)}</span>
       <span class="c-fac fac"><b data-site="${esc(x.site)}">${esc(x.type)}</b><span title="${esc(x.name)}">${esc(x.name)}</span></span>
       <span class="c-holder dim">${esc(x.holder || "–")}</span>
       <span class="c-lic dim num">${esc(x.lic)}</span>
-      <span class="c-status">${pill(x.key)}</span>
+      <span class="c-status">${pill(x.key)}${rtag(x.rk, true, tip)}</span>
       <span class="c-last dim num">${dmy(x.last)}</span>
       <span class="c-next num"><span class="lbl-m">Next Due </span>${dmy(x.next)}<span class="lbl-m"> · Ext. ${dmy(x.ext)}</span></span>
       <span class="c-ext dim num">${dmy(x.ext)}</span>
@@ -322,10 +367,10 @@
     $app.querySelectorAll(".bar").forEach(b => b.onclick = () => { S.f.month = S.f.month === b.dataset.month ? "" : b.dataset.month; render(); });
     $app.querySelectorAll("[data-clear]").forEach(b => b.onclick = () => { S.f[b.dataset.clear] = ""; render(); });
     const ca = document.getElementById("clearAll");
-    if (ca) ca.onclick = () => { S.f = { status: "", branch: "", site: "", type: "", q: "", month: "" }; render(); };
+    if (ca) ca.onclick = () => { S.f = NOF(); render(); };
     const q = document.getElementById("q");
     let tm; q.oninput = () => { clearTimeout(tm); tm = setTimeout(() => { S.f.q = q.value; const pos = q.selectionStart; render(); const n = document.getElementById("q"); n.focus(); n.setSelectionRange(pos, pos); }, 200); };
-    [["fBranch", "branch"], ["fSite", "site"], ["fType", "type"]].forEach(([id, k]) => document.getElementById(id).onchange = e => { S.f[k] = e.target.value; render(); });
+    [["fBranch", "branch"], ["fSite", "site"], ["fType", "type"], ["fRes", "res"]].forEach(([id, k]) => document.getElementById(id).onchange = e => { S.f[k] = e.target.value; render(); });
     $app.querySelectorAll(".row").forEach(r => {
       r.onclick = e => { if (e.target.closest("[data-stop]")) return; openDrawer(+r.dataset.id); };
       r.onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openDrawer(+r.dataset.id); } };
@@ -353,6 +398,7 @@
           <div><dt>ผลผ่านล่าสุด</dt><dd class="num">${dmy(x.last)}${x.lastRec ? " · " + esc(x.lastRec) : ""}</dd></div>
           <div><dt>รอบการบิน · สาขา</dt><dd>${esc(x.interval)}${x.branch ? " · " + esc(x.branch) : ""}</dd></div>
         </dl>
+        ${restrCard(x)}
         <div class="h-sec"><h4>ประวัติผลการบินทดสอบ</h4><span>${hist.length} ครั้ง</span></div>
         ${hist.length ? hist.map(recHtml).join("") : `<div class="rec dim">ยังไม่มีผลการบินทดสอบในระบบ</div>`}
       </div>`;
@@ -362,20 +408,39 @@
     }
     document.getElementById("dClose").onclick = closeDrawer;
   }
+  // restriction state of the latest pass, shown above the history
+  function restrCard(x) {
+    const r = x.lr; if (!x.rk || !r) return "";
+    const c = CHG[x.rk];
+    const lifted = x.rk === LIFTED;
+    const head = c ? c.head : "Restricted · ใช้งานแบบมีข้อจำกัด";
+    const sub = c ? c.sub : "ไม่มีข้อมูลเทียบกับครั้งก่อน (บันทึกก่อนเริ่มใช้การเทียบข้อจำกัด) ดูรายละเอียดในรายงาน";
+    const prevA = r.prev ? (r.prevLink ? `<a href="${esc(r.prevLink)}" target="_blank" rel="noopener">${esc(r.prev)}</a>` : esc(r.prev)) : "";
+    return `<section class="rcard${lifted ? " ok" : c && c.hot ? " hot" : ""}" aria-label="ข้อจำกัดของผลผ่านล่าสุด">
+      <div class="rc-h">${esc(head)}</div>
+      <div class="rc-s">${esc(sub)}</div>
+      <div class="rc-s">ผลผ่านล่าสุด ${esc(r.fir)} · บินวันที่ ${range(r.start, r.end)}${prevA ? " · เทียบกับ " + prevA : ""}</div>
+      ${r.note && !lifted ? `<div class="rc-n"><b>${c && c.hot ? "สรุปข้อจำกัด (จาก AF)" : "หมายเหตุ"}</b>${esc(r.note)}</div>` : ""}
+      ${r.file || r.prevLink ? `<div class="links">${r.file ? `<a class="btn ghost sm" href="${esc(r.file)}" target="_blank" rel="noopener">${ICON.file} รายงานครั้งนี้</a>` : ""}${r.prevLink ? `<a class="btn ghost sm" href="${esc(r.prevLink)}" target="_blank" rel="noopener">${ICON.file} รายงานครั้งก่อน${r.prev ? " (" + esc(r.prev) + ")" : ""}</a>` : ""}</div>` : ""}
+    </section>`;
+  }
   function recHtml(r) {
     const col = RESULT_COLOR[r.result] || "var(--text)";
     const meas = r.result === "Unusable" && r.measure ? ` · มาตรการ ${esc(r.measure)}${r.measure === "Other" ? (r.done ? " (เสร็จแล้ว)" : " (ยังไม่เสร็จ)") : ""}` : "";
     const letter = r.letterNo || r.letterDate ? `${esc(r.letterNo || "–")}${r.letterDate ? " ลงวันที่ " + dmy(r.letterDate) : ""}` : "–";
+    const c = CHG[r.chg];
+    const prevA = r.prev ? (r.prevLink ? `<a href="${esc(r.prevLink)}" target="_blank" rel="noopener">${esc(r.prev)}</a>` : esc(r.prev)) : "";
     return `<article class="rec">
       <div class="rec-top"><span class="fir">${esc(r.fir)}</span><span class="when num">${range(r.start, r.end)}${r.itype ? " · " + esc(r.itype) : ""}</span>${r.baseline ? '<span class="badge">ข้อมูลย้อนหลัง</span>' : ""}</div>
       <div class="rec-res" style="color:${col}">${esc(r.result || "–")}<span style="font-weight:400;color:var(--muted)">${meas}</span></div>
       <dl>
+        ${c ? `<dt>เทียบครั้งก่อน</dt><dd>${rtag(r.chg, false)}${prevA ? ` <span class="dim">กับ</span> ${prevA}` : ""}</dd>` : ""}
         ${r.result !== "Unusable" ? `<dt>Next / Ext.</dt><dd class="num">${dmy(r.next)} · ${dmy(r.ext)}</dd>` : ""}
         <dt>วันที่รับรอง</dt><dd class="num">${dmy(r.cert)}</dd>
         <dt>หนังสือแจ้งผล</dt><dd>${letter}</dd>
       </dl>
       ${r.file || r.letter ? `<div class="links">${r.file ? `<a class="btn ghost sm" href="${esc(r.file)}" target="_blank" rel="noopener">${ICON.file} รายงานผลการบิน</a>` : ""}${r.letter ? `<a class="btn ghost sm" href="${esc(r.letter)}" target="_blank" rel="noopener">${ICON.file} หนังสือแจ้งผล</a>` : ""}</div>` : ""}
-      ${r.note ? `<div class="note">${esc(r.note)}</div>` : ""}
+      ${r.note ? `<div class="note">${c && c.hot ? "<b>สรุปข้อจำกัด</b>" : ""}${esc(r.note)}</div>` : ""}
       ${r.by ? `<div class="by">บันทึกโดย ${esc(r.by)}</div>` : ""}
     </article>`;
   }
