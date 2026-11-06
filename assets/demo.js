@@ -13,33 +13,41 @@ window.FIRMS_DEMO = function () {
     { Title: "NDB", IntervalValue: 1, IntervalUnit: "Year", Branch: "N" },
     { Title: "SSR", IntervalValue: 1, IntervalUnit: "Year", Branch: "S" }
   ];
-  // [site, type, base, name, lic, holder, daysSinceLast, op]
+  // [site, type, base, name, lic, holder, daysSinceLast, op, [prevResult, lastResult]]
+  const U = "Unrestricted", R = "Restricted";
   const F = [
-    ["VTCC", "ILS/DME", "ILS/DME", "สนามบินเชียงใหม่ จังหวัดเชียงใหม่", "2/2558", "AEROTHAI", 240, "Service Ready"],
-    ["VTBS", "ILS/DME (02R)", "ILS/DME", "ศูนย์ควบคุมจราจรทางอากาศสุวรรณภูมิ", "5/2558", "AEROTHAI", 225, "Service Ready"],
-    ["VTBS", "ILS/DME (19)", "ILS/DME", "ศูนย์ควบคุมจราจรทางอากาศสุวรรณภูมิ", "4/2558", "AEROTHAI", 60, "Service Ready"],
-    ["VTBD", "ILS/DME (21R)", "ILS/DME", "สนามบินดอนเมือง กรุงเทพมหานคร", "20/2557", "AEROTHAI", 190, "Service Ready"],
-    ["VTCL", "DVOR/DME", "DVOR/DME", "สนามบินลำปาง จังหวัดลำปาง", "33/2557", "AEROTHAI", 40, "Action Pending"],
-    ["VTUU", "ILS/DME", "ILS/DME", "สนามบินอุบลราชธานี จังหวัดอุบลราชธานี", "49/2557", "AEROTHAI", 160, "Service Ready"],
-    ["VTSG", "DVOR/DME", "DVOR/DME", "สนามบินกระบี่ จังหวัดกระบี่", "62/2557", "AEROTHAI", 340, "Service Ready"],
-    ["VTBU", "NDB", "NDB", "สนามบินอู่ตะเภา ระยอง-พัทยา จังหวัดระยอง", "N005/2562", "Royal Thai Navy", 120, "Service Ready"],
-    ["VTSB", "DVOR/DME", "DVOR/DME", "สนามบินสุราษฎร์ธานี จังหวัดสุราษฎร์ธานี", "84/2557", "AEROTHAI", 20, "Service Ready"],
-    ["VTPO", "ILS/DME", "ILS/DME", "สนามบินสุโขทัย จังหวัดสุโขทัย", "N004/2561", "AEROTHAI", 90, "Service Ready"],
-    ["CMP", "DVOR/DME", "DVOR/DME", "สถานีเครื่องช่วยการเดินอากาศ DVOR/DME ชุมแพ จังหวัดขอนแก่น", "54/2557", "AEROTHAI", 170, "Service Ready"],
-    ["VTCT", "SSR", "SSR", "สนามบินแม่ฟ้าหลวง จังหวัดเชียงราย", "12/2558", "AEROTHAI", 330, "Out of Service"],
-    ["VTSP", "ILS/DME (27)", "ILS/DME", "สนามบินภูเก็ต จังหวัดภูเก็ต", "18/2558", "AEROTHAI", 150, "Service Ready"],
-    ["VTSP", "SSR", "SSR", "สนามบินภูเก็ต จังหวัดภูเก็ต", "S003/2561", "AEROTHAI", 200, "Service Ready"],
-    ["VTSS", "ILS/DME (08)", "ILS/DME", "สนามบินหาดใหญ่ จังหวัดสงขลา", "16/2558", "AEROTHAI", 45, "Service Ready"],
-    ["VTUD", "DVOR/DME", "DVOR/DME", "สนามบินอุดรธานี จังหวัดอุดรธานี", "41/2557", "AEROTHAI", 300, "Service Ready"],
-    ["VTUK", "DME", "DME", "สนามบินขอนแก่น จังหวัดขอนแก่น", "44/2557", "AEROTHAI", 260, "Service Ready"],
-    ["VTCN", "NDB", "NDB", "สนามบินน่านนคร จังหวัดน่าน", "27/2557", "AEROTHAI", null, "Service Ready"],
-    ["VTBK", "LOC/DME", "LOC/DME", "สนามบินกำแพงแสน จังหวัดนครปฐม", "N002/2562", "Royal Thai Navy", 100, "Service Ready"],
-    ["VTSM", "SSR", "SSR", "สนามบินสมุย จังหวัดสุราษฎร์ธานี", "S002/2561", "AEROTHAI", 380, "Service Ready"]
+    ["VTCC", "ILS/DME", "ILS/DME", "สนามบินเชียงใหม่ จังหวัดเชียงใหม่", "2/2558", "AEROTHAI", 240, "Service Ready", [R, R]],
+    ["VTBS", "ILS/DME (02R)", "ILS/DME", "ศูนย์ควบคุมจราจรทางอากาศสุวรรณภูมิ", "5/2558", "AEROTHAI", 225, "Service Ready", [U, U]],
+    ["VTBS", "ILS/DME (19)", "ILS/DME", "ศูนย์ควบคุมจราจรทางอากาศสุวรรณภูมิ", "4/2558", "AEROTHAI", 60, "Service Ready", [U, R]],
+    ["VTBD", "ILS/DME (21R)", "ILS/DME", "สนามบินดอนเมือง กรุงเทพมหานคร", "20/2557", "AEROTHAI", 190, "Service Ready", [U, U]],
+    ["VTCL", "DVOR/DME", "DVOR/DME", "สนามบินลำปาง จังหวัดลำปาง", "33/2557", "AEROTHAI", 40, "Action Pending", [U, U]],
+    ["VTUU", "ILS/DME", "ILS/DME", "สนามบินอุบลราชธานี จังหวัดอุบลราชธานี", "49/2557", "AEROTHAI", 160, "Service Ready", [R, U]],
+    ["VTSG", "DVOR/DME", "DVOR/DME", "สนามบินกระบี่ จังหวัดกระบี่", "62/2557", "AEROTHAI", 340, "Service Ready", [U, U]],
+    ["VTBU", "NDB", "NDB", "สนามบินอู่ตะเภา ระยอง-พัทยา จังหวัดระยอง", "N005/2562", "Royal Thai Navy", 120, "Service Ready", [U, U]],
+    ["VTSB", "DVOR/DME", "DVOR/DME", "สนามบินสุราษฎร์ธานี จังหวัดสุราษฎร์ธานี", "84/2557", "AEROTHAI", 20, "Service Ready", [R, R]],
+    ["VTPO", "ILS/DME", "ILS/DME", "สนามบินสุโขทัย จังหวัดสุโขทัย", "N004/2561", "AEROTHAI", 90, "Service Ready", [U, U]],
+    ["CMP", "DVOR/DME", "DVOR/DME", "สถานีเครื่องช่วยการเดินอากาศ DVOR/DME ชุมแพ จังหวัดขอนแก่น", "54/2557", "AEROTHAI", 170, "Service Ready", [U, U]],
+    ["VTCT", "SSR", "SSR", "สนามบินแม่ฟ้าหลวง จังหวัดเชียงราย", "12/2558", "AEROTHAI", 330, "Out of Service", [U, U]],
+    ["VTSP", "ILS/DME (27)", "ILS/DME", "สนามบินภูเก็ต จังหวัดภูเก็ต", "18/2558", "AEROTHAI", 150, "Service Ready", [U, U]],
+    ["VTSP", "SSR", "SSR", "สนามบินภูเก็ต จังหวัดภูเก็ต", "S003/2561", "AEROTHAI", 200, "Service Ready", [U, U]],
+    ["VTSS", "ILS/DME (08)", "ILS/DME", "สนามบินหาดใหญ่ จังหวัดสงขลา", "16/2558", "AEROTHAI", 45, "Service Ready", [U, U]],
+    ["VTUD", "DVOR/DME", "DVOR/DME", "สนามบินอุดรธานี จังหวัดอุดรธานี", "41/2557", "AEROTHAI", 300, "Service Ready", [U, U]],
+    ["VTUK", "DME", "DME", "สนามบินขอนแก่น จังหวัดขอนแก่น", "44/2557", "AEROTHAI", 260, "Service Ready", [U, U]],
+    ["VTCN", "NDB", "NDB", "สนามบินน่านนคร จังหวัดน่าน", "27/2557", "AEROTHAI", null, "Service Ready", [U, U]],
+    ["VTBK", "LOC/DME", "LOC/DME", "สนามบินกำแพงแสน จังหวัดนครปฐม", "N002/2562", "Royal Thai Navy", 100, "Service Ready", [U, U]],
+    ["VTSM", "SSR", "SSR", "สนามบินสมุย จังหวัดสุราษฎร์ธานี", "S002/2561", "AEROTHAI", 380, "Service Ready", [U, R]]
   ];
+  // restriction change of the newer record (CL-15) — VTSM keeps none to show a record made before the comparison existed
+  const CHG_DEMO = { VTCC: "เหมือนเดิม", "VTBS|ILS/DME (19)": "ข้อจำกัดใหม่", VTUU: "ยกเลิกข้อจำกัด", VTSB: "ต่างจากเดิม" };
+  const NOTE_DEMO = {
+    "ข้อจำกัดใหม่": "Glide path structure นอกเกณฑ์ช่วง 2–3 NM\nใช้ได้ถึง CAT I เท่านั้น (เดิม CAT II)",
+    "ต่างจากเดิม": "Coverage radial 090–120 ลดจาก 40 NM เหลือ 25 NM ที่ 3,000 ft\n(เดิม จำกัดเฉพาะ radial 100–110)",
+    "เหมือนเดิม": "Course structure นอกเกณฑ์ช่วง Zone 3 ตามรายงานหน้า 4"
+  };
   const facilities = [], records = [];
   let rid = 1;
   F.forEach((f, i) => {
-    const [site, type, base, name, lic, holder, since, op] = f;
+    const [site, type, base, name, lic, holder, since, op, res] = f;
     const ils = base === "ILS/DME" || base === "LOC/DME";
     let last = null, next = null, ext = null, due = "No Record";
     if (since !== null) {
@@ -50,17 +58,22 @@ window.FIRMS_DEMO = function () {
       const nm = new Date(Date.UTC(T[0], T[1], 1)), nmEnd = new Date(Date.UTC(T[0], T[1] + 1, 0));
       due = t > e ? "Expired" : t > n ? "PastDue" : (n >= +nm && n <= +nmEnd) ? "Due Next Month" : "Valid";
       const prev = ils ? add(...last, -182) : add(...last, -365);
-      [[prev, true], [last, false]].forEach(([d, old]) => {
+      let prevTitle = "";
+      [[prev, true, res[0]], [last, false, res[1]]].forEach(([d, old, result]) => {
         const id = rid++;
+        const title = "FIR-" + String(id).padStart(4, "0");
+        const chg = old ? null : (CHG_DEMO[site + "|" + type] || CHG_DEMO[site] || null);
         records.push({
-          ID: id, Title: "FIR-" + String(id).padStart(4, "0"), FacilityId: i + 1,
+          ID: id, Title: title, FacilityId: i + 1,
           FlightDateStart: iso(...add(...d, base === "ILS/DME" ? -1 : 0)), FlightDate: iso(...d),
-          InspectionType: "Periodic", Result: id % 5 === 0 ? "Restricted" : "Unrestricted", Measure: null, MeasureCompleted: false,
+          InspectionType: "Periodic", Result: result, Measure: null, MeasureCompleted: false,
           NextDueDate: iso(...(ils ? add(...d, 180) : addY(...d))), ExtendableDueDate: iso(...add(...(ils ? add(...d, 180) : addY(...d)), 30)),
           CertifiedDate: iso(...add(...d, 6)), LetterNo: "กพท 08/" + (1200 + id), LetterDate: iso(...add(...d, 8)),
           FileLink: { Url: "#demo-report", Description: "" }, LetterLink: old ? null : { Url: "#demo-letter", Description: "" },
-          Note: id % 7 === 0 ? "ข้อจำกัดตามรายงานหน้า 4" : "", IsBaseline: old, Author: { Title: old ? "AF Pilot 1" : "AF Pilot 2" }
+          Note: chg ? (NOTE_DEMO[chg] || "") : (result === R ? "ข้อจำกัดตามรายงานหน้า 4" : ""), IsBaseline: old, Author: { Title: old ? "AF Pilot 1" : "AF Pilot 2" },
+          RestrictionChange: chg, RestrictionPrev: chg ? prevTitle : null, RestrictionPrevLink: chg ? "#demo-prev-report" : null
         });
+        prevTitle = title;
       });
     }
     if (op !== "Service Ready") {
