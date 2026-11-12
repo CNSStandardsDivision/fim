@@ -12,6 +12,9 @@ window.FIRMS_CONFIG = {
   // กลุ่ม SharePoint ที่บันทึกผลได้: การ์ด FIRMS Recorder บนหน้าแรก + ปุ่มบันทึกผลใน Dashboard
   recorderGroups: ["FIM-AF", "FIM-Admin"],
 
+  // โฟลเดอร์รายงานผลเก่าก่อนใช้ FIRMS (OneDrive กอง AF) — ปุ่ม "รายงานเก่า" ในแผงรายละเอียด Facility · เว้นว่าง "" เพื่อซ่อนปุ่ม
+  oldReportsUrl: "https://caathai-my.sharepoint.com/:f:/r/personal/thongchai_s_caat_or_th/Documents/Flight%20Check%20Division/2.%20Flight%20Inspection%20Report?d=w79836a66222141ca9a2b07825d721e8b&csf=1&web=1&e=bKTTMK",
+
   // URL ของ Document Library (ชื่อที่แสดง: CNS-FIM Documents)
   libraryUrl: "FIMDocuments",
 
