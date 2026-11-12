@@ -11,7 +11,8 @@ window.FIRMS_DEMO = function () {
     { Title: "DVOR/DME", IntervalValue: 1, IntervalUnit: "Year", Branch: "N" },
     { Title: "DME", IntervalValue: 1, IntervalUnit: "Year", Branch: "N" },
     { Title: "NDB", IntervalValue: 1, IntervalUnit: "Year", Branch: "N" },
-    { Title: "SSR", IntervalValue: 1, IntervalUnit: "Year", Branch: "S" }
+    { Title: "SSR", IntervalValue: 1, IntervalUnit: "Year", Branch: "S" },
+    { Title: "PAPI", IntervalValue: 1, IntervalUnit: "Year" }
   ];
   // [site, type, base, name, lic, holder, daysSinceLast, op, [prevResult, lastResult]]
   const U = "Unrestricted", R = "Restricted";
@@ -35,7 +36,9 @@ window.FIRMS_DEMO = function () {
     ["VTUK", "DME", "DME", "สนามบินขอนแก่น จังหวัดขอนแก่น", "44/2557", "AEROTHAI", 260, "Service Ready", [U, U]],
     ["VTCN", "NDB", "NDB", "สนามบินน่านนคร จังหวัดน่าน", "27/2557", "AEROTHAI", null, "Service Ready", [U, U]],
     ["VTBK", "LOC/DME", "LOC/DME", "สนามบินกำแพงแสน จังหวัดนครปฐม", "N002/2562", "Royal Thai Navy", 100, "Service Ready", [U, U]],
-    ["VTSM", "SSR", "SSR", "สนามบินสมุย จังหวัดสุราษฎร์ธานี", "S002/2561", "AEROTHAI", 380, "Service Ready", [U, R]]
+    ["VTSM", "SSR", "SSR", "สนามบินสมุย จังหวัดสุราษฎร์ธานี", "S002/2561", "AEROTHAI", 380, "Service Ready", [U, R]],
+    ["VTSG", "PAPI 14", "PAPI", "สนามบินกระบี่ จังหวัดกระบี่", "PAPI-VTSG-14", "AEROTHAI", 267, "Service Ready", [U, U]],
+    ["VTUL", "PAPI 01", "PAPI", "สนามบินเลย จังหวัดเลย", "PAPI-VTUL-01", "AEROTHAI", 392, "Service Ready", [U, U], "ไม่มีใบอนุญาต"]
   ];
   // restriction change of the newer record (CL-15) — VTSM keeps none to show a record made before the comparison existed
   const CHG_DEMO = { VTCC: "เหมือนเดิม", "VTBS|ILS/DME (19)": "ข้อจำกัดใหม่", VTUU: "ยกเลิกข้อจำกัด", VTSB: "ต่างจากเดิม" };
@@ -47,7 +50,7 @@ window.FIRMS_DEMO = function () {
   const facilities = [], records = [];
   let rid = 1;
   F.forEach((f, i) => {
-    const [site, type, base, name, lic, holder, since, op, res] = f;
+    const [site, type, base, name, lic, holder, since, op, res, remark] = f;
     const ils = base === "ILS/DME" || base === "LOC/DME";
     let last = null, next = null, ext = null, due = "No Record";
     if (since !== null) {
@@ -87,7 +90,7 @@ window.FIRMS_DEMO = function () {
       });
     }
     facilities.push({
-      ID: i + 1, Title: lic, SiteCode: site, SiteName: name, FacilityType: type, BaseType: base, LicenseHolder: holder,
+      ID: i + 1, Title: lic, SiteCode: site, SiteName: name, FacilityType: type, BaseType: base, LicenseHolder: holder, LicenseRemark: remark || null,
       LicenseStatus: "ปกติ", OperationalStatus: op, DueStatus: due,
       LastInspection: last && iso(...last), LastRecord: last ? records.filter(r => r.FacilityId === i + 1 && r.Result !== "Unusable").slice(-1)[0]?.Title : null,
       NextDueDate: next && iso(...next), ExtendableDueDate: ext && iso(...ext)
