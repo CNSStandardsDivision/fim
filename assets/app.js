@@ -88,6 +88,7 @@
     grid: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>',
     pen: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg>',
     lock: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>',
+    folderSm: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6a1 1 0 0 1 1-1h5l2 2h9a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/></svg>',
     folder: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 6a1 1 0 0 1 1-1h5l2 2h9a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/></svg>',
     arrow: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>',
     ext: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 4h6v6M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>',
@@ -391,7 +392,7 @@
         <h2 id="dTitle">${esc(x.site)}</h2>
         <h3>${esc(x.type)}</h3>
         <p>${esc(x.name)}<br>${x.remark ? `<span class="ltag">${esc(x.remark)}</span> ${esc(x.lic)}` : "ใบอนุญาต " + esc(x.lic)}${x.holder ? " · " + esc(x.holder) : ""}</p>
-        <div class="row2">${pill(x.key)}<a class="btn ghost sm" href="${esc(folderLink(x))}" target="_blank" rel="noopener">${ICON.file} โฟลเดอร์ไฟล์</a>${S.canAdd ? `<a class="btn sm" href="${esc(recorderLink(x.lic))}" target="_blank" rel="noopener">${ICON.plus} บันทึกผลของ Facility นี้</a>` : ""}</div>
+        <div class="row2">${pill(x.key)}<a class="btn ghost sm" href="${esc(folderLink(x))}" target="_blank" rel="noopener">${ICON.file} โฟลเดอร์ไฟล์</a>${C.oldReportsUrl ? `<a class="btn ghost sm" href="${esc(C.oldReportsUrl)}" target="_blank" rel="noopener" title="รายงานผลการบินทดสอบก่อนใช้ FIRMS (โฟลเดอร์ OneDrive ของกอง AF)">${ICON.folderSm} รายงานเก่า</a>` : ""}${S.canAdd ? `<a class="btn sm" href="${esc(recorderLink(x.lic))}" target="_blank" rel="noopener">${ICON.plus} บันทึกผลของ Facility นี้</a>` : ""}</div>
       </div>
       <div class="d-body">
         <dl class="facts">
