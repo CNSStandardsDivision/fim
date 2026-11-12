@@ -109,6 +109,7 @@ input:focus, select:focus, button:focus-visible, a:focus-visible { outline: 2px 
 .pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; white-space: nowrap; }
 .pill i { width: 6px; height: 6px; border-radius: 3px; display: inline-block; }
 .lbl-m { display: none; }
+.ltag { display: inline-block; padding: 0 6px; border-radius: 4px; background: #EEEBE7; color: #57524D; font-size: 11.5px; font-weight: 600; line-height: 20px; white-space: nowrap; font-variant-numeric: normal; }
 .empty { padding: 48px 20px; text-align: center; color: var(--muted); }
 
 /* restriction vs previous pass (CL-15) */
