@@ -125,7 +125,8 @@
   const WANT = {
     facilities: { Title: ["Title"], SiteCode: ["SiteCode"], SiteName: ["SiteName"], FacilityType: ["FacilityType"], BaseType: ["BaseType"],
       LicenseHolder: ["LicenseHolder", "LicenceHolder"], LicenseStatus: ["LicenseStatus"], OperationalStatus: ["OperationalStatus"],
-      DueStatus: ["DueStatus"], LastInspection: ["LastInspection"], LastRecord: ["LastRecord"], NextDueDate: ["NextDueDate"], ExtendableDueDate: ["ExtendableDueDate"] },
+      DueStatus: ["DueStatus"], LastInspection: ["LastInspection"], LastRecord: ["LastRecord"], NextDueDate: ["NextDueDate"], ExtendableDueDate: ["ExtendableDueDate"],
+      LicenseRemark: ["LicenseRemark"] },
     records: { Title: ["Title"], Facility: ["Facility"], FlightDateStart: ["FlightDateStart"], FlightDate: ["FlightDate"], InspectionType: ["InspectionType"],
       Result: ["Result"], Measure: ["Measure"], MeasureCompleted: ["MeasureCompleted"], NextDueDate: ["NextDueDate"], ExtendableDueDate: ["ExtendableDueDate"],
       CertifiedDate: ["CertifiedDate"], LetterNo: ["LetterNo"], LetterDate: ["LetterDate"], FileLink: ["FileLink"], LetterLink: ["LetterLink"],
@@ -134,7 +135,7 @@
     types: { Title: ["Title"], IntervalValue: ["IntervalValue"], IntervalUnit: ["IntervalUnit"] }
   };
   // columns added later (CL-15): if not created yet the dashboard simply shows no restriction info, without the "missing column" notice
-  const OPTIONAL = new Set(["records.RestrictionChange", "records.RestrictionPrev", "records.RestrictionPrevLink"]);
+  const OPTIONAL = new Set(["facilities.LicenseRemark", "records.RestrictionChange", "records.RestrictionPrev", "records.RestrictionPrevLink"]);
   S.missing = [];
 
   // fields: [{InternalName, Title, TypeAsString}] -> getter(item, wantedName)
@@ -182,7 +183,8 @@
         const t = S.types[base] || {};
         return {
           id: x.ID, lic: String(gf(x, "Title") || "").trim(), site: gf(x, "SiteCode") || "", name: gf(x, "SiteName") || "", type: gf(x, "FacilityType") || "",
-          base, holder: gf(x, "LicenseHolder") || "", key, branch: base ? (base === "SSR" ? "S" : "N") : "", // same rule as F4
+          base, holder: gf(x, "LicenseHolder") || "", remark: gf(x, "LicenseRemark") || "", key,
+          branch: base ? (base === "SSR" ? "S" : base === "PAPI" ? "V" : "N") : "", // same rule as F1–F4 Branch (CL-17): PAPI = V, AF only
           interval: t.IntervalValue ? `ทุก ${t.IntervalValue} ${t.IntervalUnit === "Day" ? "วัน" : t.IntervalUnit === "Month" ? "เดือน" : "ปี"}` : "–",
           last: day(gf(x, "LastInspection")), lastRec: gf(x, "LastRecord") || "", next: day(gf(x, "NextDueDate")), ext: day(gf(x, "ExtendableDueDate"))
         };
@@ -247,7 +249,7 @@
       (!f.type || x.base === f.type) &&
       resOk(x, f.res) &&
       (ignore === "month" || !f.month || (x.next && x.next.slice(0, 7) === f.month)) &&
-      (!q || [x.site, x.name, x.type, x.lic, x.holder].join(" ").toLowerCase().includes(q))
+      (!q || [x.site, x.name, x.type, x.lic, x.holder, x.remark].join(" ").toLowerCase().includes(q))
     ).sort((a, b) => (ST[a.key]?.sort ?? 9) - (ST[b.key]?.sort ?? 9) || (a.next || "9999").localeCompare(b.next || "9999") || a.site.localeCompare(b.site));
   }
 
@@ -310,7 +312,7 @@
     $app.style.setProperty("--act-col", "0px");
     $app.innerHTML = `
       <div class="page-head">
-        <div><h1>ทะเบียนการบินทดสอบ</h1><p>Facility ที่ใบอนุญาตมีผล ${S.fac.length} รายการ · ${nSites} สถานที่</p></div>
+        <div><h1>ทะเบียนการบินทดสอบ</h1><p>Facility ในทะเบียน ${S.fac.length} รายการ · ${nSites} สถานที่</p></div>
       </div>
 
       ${S.missing.length ? `<div class="notice">ไม่พบคอลัมน์ใน SharePoint: ${esc(S.missing.join(", "))} · ข้อมูลส่วนนี้จะว่าง แจ้ง Admin</div>` : ""}
@@ -328,7 +330,7 @@
 
       <div class="filters">
         <label class="search">${ICON.search}<input id="q" type="search" placeholder="ค้นหา ICAO, ชื่อสนามบิน, ประเภท, เลขที่ใบอนุญาต" value="${esc(f.q)}" aria-label="ค้นหา"></label>
-        <select id="fBranch" aria-label="สาขา"><option value="">ทุกสาขา</option><option value="N"${f.branch === "N" ? " selected" : ""}>สาขา N (NAV)</option><option value="S"${f.branch === "S" ? " selected" : ""}>สาขา S (SUR)</option></select>
+        <select id="fBranch" aria-label="สาขา"><option value="">ทุกสาขา</option><option value="N"${f.branch === "N" ? " selected" : ""}>สาขา N (NAV)</option><option value="S"${f.branch === "S" ? " selected" : ""}>สาขา S (SUR)</option><option value="V"${f.branch === "V" ? " selected" : ""}>PAPI (Visual Aids)</option></select>
         <select id="fSite" aria-label="สถานที่"><option value="">ทุกสถานที่</option>${sites.map(s => `<option${f.site === s ? " selected" : ""}>${esc(s)}</option>`).join("")}</select>
         <select id="fType" aria-label="ประเภท"><option value="">ทุกประเภท</option>${types.map(s => `<option${f.type === s ? " selected" : ""}>${esc(s)}</option>`).join("")}</select>
         <select id="fRes" aria-label="ข้อจำกัด"><option value="">ทุกผลการบิน</option>
@@ -354,7 +356,7 @@
       <span class="c-site site">${esc(x.site)}</span>
       <span class="c-fac fac"><b data-site="${esc(x.site)}">${esc(x.type)}</b><span title="${esc(x.name)}">${esc(x.name)}</span></span>
       <span class="c-holder dim">${esc(x.holder || "–")}</span>
-      <span class="c-lic dim num">${esc(x.lic)}</span>
+      <span class="c-lic dim num">${x.remark ? `<span class="ltag" title="${esc(x.lic)}">${esc(x.remark)}</span>` : esc(x.lic)}</span>
       <span class="c-status">${pill(x.key)}${rtag(x.rk, true, tip)}</span>
       <span class="c-last dim num">${dmy(x.last)}</span>
       <span class="c-next num"><span class="lbl-m">Next Due </span>${dmy(x.next)}<span class="lbl-m"> · Ext. ${dmy(x.ext)}</span></span>
@@ -388,7 +390,7 @@
         <div class="tag">FACILITY</div>
         <h2 id="dTitle">${esc(x.site)}</h2>
         <h3>${esc(x.type)}</h3>
-        <p>${esc(x.name)}<br>ใบอนุญาต ${esc(x.lic)}${x.holder ? " · " + esc(x.holder) : ""}</p>
+        <p>${esc(x.name)}<br>${x.remark ? `<span class="ltag">${esc(x.remark)}</span> ${esc(x.lic)}` : "ใบอนุญาต " + esc(x.lic)}${x.holder ? " · " + esc(x.holder) : ""}</p>
         <div class="row2">${pill(x.key)}<a class="btn ghost sm" href="${esc(folderLink(x))}" target="_blank" rel="noopener">${ICON.file} โฟลเดอร์ไฟล์</a>${S.canAdd ? `<a class="btn sm" href="${esc(recorderLink(x.lic))}" target="_blank" rel="noopener">${ICON.plus} บันทึกผลของ Facility นี้</a>` : ""}</div>
       </div>
       <div class="d-body">
